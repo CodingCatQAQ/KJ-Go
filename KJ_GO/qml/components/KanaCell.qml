@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import "../theme"
 
 Rectangle {
@@ -7,46 +6,63 @@ Rectangle {
     property string kana: "あ"
     property string romaji: "a"
     property string mastery: "new"
+    property bool dimmed: false
     signal activated()
-    implicitWidth: 96
-    implicitHeight: 70
+
+    implicitWidth: 72
+    implicitHeight: 64
     radius: Theme.radiusMd
-    color: mastery === "mastered" ? Theme.primary : Theme.surface
-    border.width: mastery === "mastered" ? 0 : (mastery === "learning" ? 2 : 1)
-    border.color: mastery === "learning" ? Theme.accent : Theme.line
-    opacity: enabled ? 1 : 0.42
-    layer.enabled: hover.hovered
-    layer.smooth: true
+    color: mastery === "mastered" ? Theme.primary : "transparent"
+    border.width: mastery === "mastered" ? 0 : 1
+    border.color: Theme.line
+    opacity: dimmed ? 0.2 : 1
+    scale: hover.hovered && !dimmed ? 1.06 : 1
     transformOrigin: Item.Center
+
+    Behavior on scale {
+        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        anchors.topMargin: 8
+        z: -1
+        radius: Theme.radiusMd
+        color: Qt.rgba(0.11, 0.106, 0.098, root.mastery === "mastered" ? 0 : (hover.hovered ? 0.16 : 0))
+    }
 
     Text {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: -7
+        anchors.verticalCenterOffset: -8
         text: root.kana
-        color: root.mastery === "mastered" ? Theme.bg : Theme.text
+        color: root.mastery === "mastered" ? Theme.primaryFg : Theme.text
         font.family: Theme.fontDisplay
         font.pixelSize: Theme.kanaCell
+        font.bold: true
     }
     Text {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 7
+        anchors.bottomMargin: 8
         text: root.romaji.toUpperCase()
-        color: root.mastery === "mastered" ? Theme.bg : Theme.textMuted
+        color: root.mastery === "mastered" ? Qt.rgba(Theme.primaryFg.r, Theme.primaryFg.g, Theme.primaryFg.b, 0.7) : Theme.textMuted
         font.family: Theme.fontBody
         font.pixelSize: 10
-        font.letterSpacing: 1.5
+        font.bold: true
+        font.letterSpacing: 1.6
     }
     Rectangle {
         visible: root.mastery === "learning"
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.leftMargin: 18
+        anchors.rightMargin: 18
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: 6
         height: 2
         color: Theme.accent
     }
+
     HoverHandler { id: hover }
     TapHandler { onTapped: root.activated() }
-    scale: hover.hovered ? 1.06 : 1
-    Behavior on scale { NumberAnimation { duration: Theme.durFast } }
 }

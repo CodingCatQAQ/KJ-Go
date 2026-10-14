@@ -41,6 +41,10 @@ Thumbs.db
 *.qbs.user*
 CMakeLists.txt.user*
 
+# Qt Design Studio local state
+*.qmlproject.qtds
+*.qmlproject.user*
+
 # xemacs temporary files
 *.flc
 

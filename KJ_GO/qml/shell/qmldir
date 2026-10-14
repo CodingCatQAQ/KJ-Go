@@ -1,3 +1,4 @@
 AppShell 1.0 AppShell.qml
 AppTopBar 1.0 AppTopBar.qml
+AppSideBar 1.0 AppSideBar.qml
 ModulePlaceholder 1.0 ModulePlaceholder.qml

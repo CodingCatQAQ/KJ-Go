@@ -20,6 +20,9 @@ qt_add_executable(appKJ_GO
 set_source_files_properties(qml/theme/Theme.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
 )
+set_source_files_properties(qml/modules/gojuon/KanaCatalog.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+)
 
 qt_add_qml_module(appKJ_GO
     URI KJ_GO
@@ -28,14 +31,18 @@ qt_add_qml_module(appKJ_GO
         qml/Main.qml
         qml/shell/AppShell.qml
         qml/shell/AppTopBar.qml
+        qml/shell/AppSideBar.qml
         qml/shell/ModulePlaceholder.qml
         qml/theme/Theme.qml
         qml/theme/LightPalette.qml
         qml/theme/DarkPalette.qml
         qml/components/KanaCell.qml
         qml/components/ScriptToggle.qml
+        qml/components/Kbd.qml
+        qml/modules/gojuon/KanaCatalog.qml
         qml/modules/gojuon/KanaOverviewPage.qml
         qml/modules/gojuon/KanaDetailPage.qml
+        qml/modules/gojuon/FlashcardPage.qml
         qml/modules/gojuon/WeakQueuePage.qml
     RESOURCES
         qml/theme/qmldir

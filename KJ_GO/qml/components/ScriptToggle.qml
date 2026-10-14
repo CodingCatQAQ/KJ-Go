@@ -1,27 +1,80 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Layouts
 import "../theme"
 
-Button {
+RowLayout {
     id: control
     property bool katakana: false
     signal changed(bool katakana)
-    implicitWidth: 152
-    implicitHeight: 40
-    text: katakana ? "片假名" : "平假名"
-    font.family: Theme.fontBody
-    font.pixelSize: Theme.body
-    contentItem: Row {
-        spacing: 0
-        anchors.fill: parent
-        Text { width: parent.width / 2; height: parent.height; text: "平假名"; color: control.katakana ? Theme.textMuted : Theme.bg; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13 }
-        Text { width: parent.width / 2; height: parent.height; text: "片假名"; color: control.katakana ? Theme.bg : Theme.textMuted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13 }
+    spacing: 12
+
+    component Segment: Rectangle {
+        id: segment
+        property string kana: ""
+        property string label: ""
+        property bool active: false
+        signal picked()
+        implicitWidth: body.implicitWidth + 28
+        implicitHeight: 36
+        radius: Theme.radiusSm
+        color: active ? Theme.text : "transparent"
+
+        Row {
+            id: body
+            anchors.centerIn: parent
+            spacing: 8
+            Text {
+                text: segment.kana
+                color: segment.active ? Theme.bg : Theme.textMuted
+                font.family: Theme.fontDisplay
+                font.pixelSize: 18
+                font.bold: true
+            }
+            Text {
+                text: segment.label
+                color: segment.active ? Theme.bg : Theme.textMuted
+                font.family: Theme.fontBody
+                font.pixelSize: 14
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+        TapHandler {
+            onTapped: {
+                if (!segment.active)
+                    segment.picked()
+            }
+        }
     }
-    background: Rectangle {
+
+    Rectangle {
+        implicitWidth: segments.implicitWidth + 8
+        implicitHeight: 44
         radius: Theme.radiusMd
-        color: Theme.surface
+        color: "transparent"
+        border.width: 1
         border.color: Theme.line
-        Rectangle { x: control.katakana ? parent.width / 2 : 0; width: parent.width / 2; height: parent.height; radius: Theme.radiusMd; color: Theme.primary; Behavior on x { NumberAnimation { duration: Theme.durFast } } }
+
+        Row {
+            id: segments
+            anchors.centerIn: parent
+            spacing: 0
+            Segment {
+                kana: "あ"
+                label: "平假名"
+                active: !control.katakana
+                onPicked: control.changed(false)
+            }
+            Segment {
+                kana: "ア"
+                label: "片假名"
+                active: control.katakana
+                onPicked: control.changed(true)
+            }
+        }
     }
-    onClicked: { katakana = !katakana; changed(katakana) }
+
+    Kbd {
+        text: "Tab"
+        Layout.alignment: Qt.AlignVCenter
+    }
 }
