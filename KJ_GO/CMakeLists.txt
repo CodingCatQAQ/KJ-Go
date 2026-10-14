@@ -4,7 +4,7 @@ project(KJ_GO VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+find_package(Qt6 REQUIRED COMPONENTS Quick Multimedia Sql)
 
 qt_standard_project_setup(REQUIRES 6.10)
 
@@ -15,12 +15,21 @@ endif()
 
 qt_add_executable(appKJ_GO
     main.cpp
+    src/audio/kana_player.h
+    src/audio/kana_player.cpp
+    src/study/study_store.h
+    src/study/study_store.cpp
 )
+
+target_include_directories(appKJ_GO PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set_source_files_properties(qml/theme/Theme.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
 )
 set_source_files_properties(qml/modules/gojuon/KanaCatalog.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+)
+set_source_files_properties(qml/modules/hangul/HangulCatalog.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
 )
 
@@ -40,6 +49,7 @@ qt_add_qml_module(appKJ_GO
         qml/components/ScriptToggle.qml
         qml/components/Kbd.qml
         qml/modules/gojuon/KanaCatalog.qml
+        qml/modules/hangul/HangulCatalog.qml
         qml/modules/gojuon/KanaOverviewPage.qml
         qml/modules/gojuon/KanaDetailPage.qml
         qml/modules/gojuon/FlashcardPage.qml
@@ -62,8 +72,24 @@ set_target_properties(appKJ_GO PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+file(GLOB KANA_AUDIO_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/seion/*.mp3"
+)
+
+qt_add_resources(appKJ_GO "kana_audio"
+    PREFIX "/qt/qml/KJ_GO"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}"
+    FILES ${KANA_AUDIO_FILES}
+)
+
+qt_add_resources(appKJ_GO "study_seed"
+    PREFIX "/study"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/data"
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ja_seion.json"
+)
+
 target_link_libraries(appKJ_GO
-    PRIVATE Qt6::Quick
+    PRIVATE Qt6::Quick Qt6::Multimedia Qt6::Sql
 )
 
 install(TARGETS appKJ_GO

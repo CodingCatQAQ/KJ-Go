@@ -1,17 +1,18 @@
 <RCC>
     <qresource>
         <file>KJ_GO.qmlproject</file>
+        <file>qml/Main.qml</file>
         <file>qml/components/KanaCell.qml</file>
         <file>qml/components/Kbd.qml</file>
-        <file>qml/components/qmldir</file>
         <file>qml/components/ScriptToggle.qml</file>
-        <file>qml/Main.qml</file>
+        <file>qml/components/qmldir</file>
         <file>qml/modules/gojuon/FlashcardPage.qml</file>
         <file>qml/modules/gojuon/KanaCatalog.qml</file>
         <file>qml/modules/gojuon/KanaDetailPage.qml</file>
         <file>qml/modules/gojuon/KanaOverviewPage.qml</file>
-        <file>qml/modules/gojuon/qmldir</file>
         <file>qml/modules/gojuon/WeakQueuePage.qml</file>
+        <file>qml/modules/gojuon/qmldir</file>
+        <file>qml/modules/hangul/HangulCatalog.qml</file>
         <file>qml/shell/AppShell.qml</file>
         <file>qml/shell/AppSideBar.qml</file>
         <file>qml/shell/AppTopBar.qml</file>
@@ -19,8 +20,8 @@
         <file>qml/shell/qmldir</file>
         <file>qml/theme/DarkPalette.qml</file>
         <file>qml/theme/LightPalette.qml</file>
-        <file>qml/theme/qmldir</file>
         <file>qml/theme/Theme.qml</file>
+        <file>qml/theme/qmldir</file>
         <file>qtquickcontrols2.conf</file>
     </qresource>
 </RCC>

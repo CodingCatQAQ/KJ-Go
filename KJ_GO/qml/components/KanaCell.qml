@@ -44,12 +44,16 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 8
+        width: Math.max(0, parent.width - 8)
+        horizontalAlignment: Text.AlignHCenter
+        fontSizeMode: Text.HorizontalFit
+        minimumPixelSize: 8
         text: root.romaji.toUpperCase()
         color: root.mastery === "mastered" ? Qt.rgba(Theme.primaryFg.r, Theme.primaryFg.g, Theme.primaryFg.b, 0.7) : Theme.textMuted
         font.family: Theme.fontBody
         font.pixelSize: 10
         font.bold: true
-        font.letterSpacing: 1.6
+        font.letterSpacing: root.romaji.length > 3 ? 0.2 : 1.6
     }
     Rectangle {
         visible: root.mastery === "learning"

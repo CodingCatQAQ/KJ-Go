@@ -5,9 +5,7 @@ import "../../components"
 
 Item {
     id: root
-    property var mastery: ({})
-    property var weakList: []
-    signal rate(string romaji, int score)
+    property string setId: "ja-seion"
     signal exit()
 
     property var queue: []
@@ -18,10 +16,14 @@ Item {
     property int known: 0
 
     readonly property bool finished: queue.length === 0 || index >= queue.length
-    readonly property string currentRomaji: queue.length === 0 ? "" : queue[Math.min(index, queue.length - 1)]
-    readonly property var entry: currentRomaji ? KanaCatalog.find(false, currentRomaji) : null
+    readonly property string currentId: queue.length === 0 ? "" : queue[Math.min(index, queue.length - 1)]
+    readonly property var entry: {
+        var rev = studyStore.revision
+        return root.currentId ? studyStore.item(root.currentId) : null
+    }
 
-    function restart() {
+    function reload() {
+        queue = studyStore.reviewQueue(setId, 12)
         index = 0
         flipped = false
         forgot = 0
@@ -30,9 +32,9 @@ Item {
     }
 
     function choose(score) {
-        if (!flipped || finished || !currentRomaji)
+        if (!flipped || finished || !currentId)
             return
-        rate(currentRomaji, score)
+        studyStore.rate(currentId, score, "flashcard", "glyph-to-reading")
         if (score === 1)
             forgot += 1
         else if (score === 2)
@@ -43,7 +45,8 @@ Item {
         index += 1
     }
 
-    Component.onCompleted: queue = KanaCatalog.reviewQueue(mastery, weakList)
+    onSetIdChanged: reload()
+    Component.onCompleted: reload()
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
 
@@ -66,7 +69,7 @@ Item {
                 font.letterSpacing: 2.2
             }
             Text {
-                text: KanaCatalog.pad2(Math.min(root.index + 1, Math.max(root.queue.length, 1)))
+                text: (Math.min(root.index + 1, Math.max(root.queue.length, 1)) < 10 ? "0" : "") + Math.min(root.index + 1, Math.max(root.queue.length, 1))
                 color: Theme.text
                 font.family: Theme.fontBody
                 font.pixelSize: 14
@@ -161,7 +164,7 @@ Item {
                     Kbd { text: "Enter"; anchors.verticalCenter: parent.verticalCenter }
                 }
                 HoverHandler { id: restartHover }
-                TapHandler { onTapped: root.restart() }
+                TapHandler { onTapped: root.reload() }
             }
         }
 
@@ -195,8 +198,8 @@ Item {
                         color: Theme.surface
                         border.width: 1
                         border.color: Theme.border
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: "平假名 · FRONT"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
-                        Text { anchors.centerIn: parent; text: root.entry ? root.entry.hira : ""; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: Theme.kanaHero; font.bold: true }
+                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: (root.entry && root.entry.pairLeftLabel ? root.entry.pairLeftLabel : "") + " · FRONT"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
+                        Text { anchors.centerIn: parent; text: root.entry ? root.entry.glyph : ""; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: Theme.kanaHero; font.bold: true }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 28; text: "它读作什么？"; color: Theme.textMuted; font.pixelSize: 11; font.letterSpacing: 1.4; font.family: Theme.fontBody }
                     }
 
@@ -220,25 +223,25 @@ Item {
                             spacing: 20
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.currentRomaji.toUpperCase()
+                                text: root.entry && root.entry.reading ? root.entry.reading.toUpperCase() : ""
                                 color: Theme.text
                                 font.family: Theme.fontBody
                                 font.pixelSize: 48
-                                font.letterSpacing: 8
+                                font.letterSpacing: root.entry && root.entry.reading && root.entry.reading.length > 3 ? 2 : 8
                             }
                             Row {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 spacing: 28
                                 Column {
                                     spacing: 8
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.hira : ""; font.family: Theme.fontDisplay; font.pixelSize: 56; font.bold: true; color: Theme.text }
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "平假名"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.6; font.family: Theme.fontBody }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.pairLeft : ""; font.family: Theme.fontDisplay; font.pixelSize: 56; font.bold: true; color: Theme.text }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.pairLeftLabel : ""; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.6; font.family: Theme.fontBody }
                                 }
                                 Rectangle { width: 1; height: 64; color: Theme.line }
                                 Column {
                                     spacing: 8
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.kata : ""; font.family: Theme.fontDisplay; font.pixelSize: 56; font.bold: true; color: Theme.primary }
-                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "片假名"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.6; font.family: Theme.fontBody }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.pairRight : ""; font.family: Theme.fontDisplay; font.pixelSize: 56; font.bold: true; color: Theme.primary }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.entry ? root.entry.pairRightLabel : ""; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.6; font.family: Theme.fontBody }
                                 }
                             }
                         }

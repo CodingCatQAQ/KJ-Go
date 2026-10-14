@@ -8,7 +8,9 @@ Rectangle {
     height: Theme.topBarH
     color: Theme.bg
     property int currentIndex: 0
+    property string language: "ja"
     signal navigate(int index)
+    signal toggleLanguage()
     signal toggleTheme()
     signal openSettings()
 
@@ -22,35 +24,12 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 24
+        anchors.leftMargin: Theme.navInset
         anchors.rightMargin: 24
         spacing: 0
 
         Row {
-            spacing: 8
-            Layout.preferredWidth: 192
-            Text {
-                text: "仮名"
-                color: Theme.text
-                font.family: Theme.fontDisplay
-                font.pixelSize: 24
-                font.bold: true
-                anchors.baseline: kanaMark.baseline
-            }
-            Text {
-                id: kanaMark
-                text: "KANA"
-                color: Theme.textMuted
-                font.family: Theme.fontBody
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 2.2
-            }
-        }
-
-        Row {
             spacing: 28
-            Layout.leftMargin: 8
             Layout.fillHeight: true
             Repeater {
                 model: [
@@ -102,13 +81,23 @@ Rectangle {
 
         Item { Layout.fillWidth: true }
 
-        Text {
-            text: "日本語 · JA"
-            color: Theme.textMuted
-            font.family: Theme.fontBody
-            font.pixelSize: 11
-            font.letterSpacing: 1.4
+        Rectangle {
             Layout.rightMargin: 12
+            Layout.preferredHeight: 36
+            implicitWidth: langText.implicitWidth + 20
+            radius: Theme.radiusMd
+            color: langHover.hovered ? Theme.muted : "transparent"
+            Text {
+                id: langText
+                anchors.centerIn: parent
+                text: root.language === "ko" ? "한국어 · KO" : "日本語 · JA"
+                color: root.language === "ko" ? Theme.langKo : (langHover.hovered ? Theme.text : Theme.textMuted)
+                font.family: Theme.fontBody
+                font.pixelSize: 11
+                font.letterSpacing: 1.4
+            }
+            HoverHandler { id: langHover }
+            TapHandler { onTapped: root.toggleLanguage() }
         }
 
         Rectangle {

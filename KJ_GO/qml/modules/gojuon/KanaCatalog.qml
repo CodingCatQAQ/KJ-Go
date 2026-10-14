@@ -63,6 +63,31 @@ QtObject {
         return notes[romaji] || (romaji.toUpperCase() + " —— 写下你自己的联想，越荒诞越好记。")
     }
 
+    function lookalikes(romaji) {
+        var groups = [
+            ["nu", "me", "ne", "re", "wa"],
+            ["ru", "ro"],
+            ["shi", "tsu", "so", "n"],
+            ["ku", "ke"],
+            ["sa", "se", "ki"],
+            ["chi", "ra"],
+            ["ha", "ho"],
+            ["ta", "na"],
+            ["u", "ra"]
+        ]
+        for (var i = 0; i < groups.length; ++i) {
+            if (groups[i].indexOf(romaji) < 0)
+                continue
+            var others = []
+            for (var j = 0; j < groups[i].length; ++j) {
+                if (groups[i][j] !== romaji)
+                    others.push(groups[i][j])
+            }
+            return others.slice(0, 3)
+        }
+        return []
+    }
+
     function find(katakana, romaji) {
         for (var r = 0; r < rows.length; ++r) {
             var row = rows[r]

@@ -29,6 +29,7 @@ QtObject {
     readonly property int label: 11
     readonly property int unit: 8
     readonly property int topBarH: 64
+    readonly property int navInset: 28
     readonly property int sideBarW: 240
     readonly property int radiusSm: 4
     readonly property int radiusMd: 8

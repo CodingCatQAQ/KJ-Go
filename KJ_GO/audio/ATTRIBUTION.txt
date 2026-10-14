@@ -1,0 +1,3 @@
+清音发音来自 Learn Japanese Adventure，经 Kana Sounds 数据集整理，许可为 CC BY 4.0。
+https://huggingface.co/datasets/arsalan-anwari/kana-sounds
+https://creativecommons.org/licenses/by/4.0/

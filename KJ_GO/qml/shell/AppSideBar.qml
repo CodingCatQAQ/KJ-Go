@@ -5,14 +5,16 @@ import "../theme"
 Item {
     id: root
     property int module: 0
+    property string language: "ja"
     property string studyView: "overview"
     property string filter: "all"
-    property var counts: ({ total: 46, mastered: 0, learning: 0, fresh: 0 })
+    property var counts: ({ total: 0, mastered: 0, learning: 0, fresh: 0 })
     property int weakCount: 0
-    property string selectedChar: "あ"
+    property int reviewCount: 0
     signal openStudy(string view)
     signal pickFilter(string id)
 
+    readonly property bool korean: language === "ko"
     readonly property int masteredPct: counts.total > 0 ? Math.round(counts.mastered / counts.total * 100) : 0
 
     component SectionLabel: Text {
@@ -115,8 +117,38 @@ Item {
         color: Theme.border
     }
 
+    Item {
+        id: logoSlot
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Theme.topBarH
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            text: "若澄QAQ"
+            color: Theme.text
+            font.family: Theme.fontDisplay
+            font.pixelSize: 22
+            font.bold: true
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Theme.border
+        }
+    }
+
     ColumnLayout {
-        anchors.fill: parent
+        anchors.top: logoSlot.bottom
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.leftMargin: 12
         anchors.rightMargin: 12
         anchors.topMargin: 24
@@ -127,36 +159,16 @@ Item {
             visible: root.module === 0
             spacing: 2
             Layout.fillWidth: true
-            SectionLabel { text: "五十音 · GOJŪON" }
+            SectionLabel { text: root.korean ? "音节 · SYLLABLE" : "五十音 · GOJŪON" }
             NavItem {
                 Layout.fillWidth: true
-                label: "清音总览"
-                meta: "46"
+                label: root.korean ? "音节总览" : "清音总览"
+                meta: "" + (root.counts.total || 0)
                 active: root.studyView === "overview"
                 onPicked: root.openStudy("overview")
             }
-            NavItem {
-                Layout.fillWidth: true
-                label: "单字详情"
-                meta: root.selectedChar
-                metaSerif: true
-                active: root.studyView === "detail"
-                onPicked: root.openStudy("detail")
-            }
-            NavItem { Layout.fillWidth: true; label: "浊音 · 半浊音"; soon: true }
-            NavItem { Layout.fillWidth: true; label: "拗音"; soon: true }
-
-            Item { height: 28; width: 1; visible: root.studyView === "overview" }
-            ColumnLayout {
-                visible: root.studyView === "overview"
-                spacing: 2
-                Layout.fillWidth: true
-                SectionLabel { text: "筛选 · FILTER" }
-                NavItem { Layout.fillWidth: true; label: "全部"; meta: "" + root.counts.total; active: root.filter === "all"; onPicked: root.pickFilter("all") }
-                NavItem { Layout.fillWidth: true; label: "已掌握"; meta: "" + root.counts.mastered; active: root.filter === "mastered"; onPicked: root.pickFilter("mastered") }
-                NavItem { Layout.fillWidth: true; label: "正在学"; meta: "" + root.counts.learning; active: root.filter === "learning"; onPicked: root.pickFilter("learning") }
-                NavItem { Layout.fillWidth: true; label: "未学"; meta: "" + root.counts.fresh; active: root.filter === "new"; onPicked: root.pickFilter("new") }
-            }
+            NavItem { visible: !root.korean; Layout.fillWidth: true; label: "浊音 · 半浊音"; soon: true }
+            NavItem { visible: !root.korean; Layout.fillWidth: true; label: "拗音"; soon: true }
 
             Item { height: 28; width: 1 }
             ColumnLayout {
@@ -165,7 +177,6 @@ Item {
                 SectionLabel { text: "后续模块 · NEXT" }
                 NavItem { Layout.fillWidth: true; label: "词汇"; soon: true }
                 NavItem { Layout.fillWidth: true; label: "语法"; soon: true }
-                NavItem { Layout.fillWidth: true; label: "韩语 · 谚文"; coralDot: true }
             }
         }
 
@@ -174,9 +185,9 @@ Item {
             spacing: 2
             Layout.fillWidth: true
             SectionLabel { text: "复习队列 · QUEUE" }
-            NavItem { Layout.fillWidth: true; label: "今日复习"; meta: "12"; active: true }
+            NavItem { Layout.fillWidth: true; label: "今日复习"; meta: "" + root.reviewCount; active: true }
             NavItem { Layout.fillWidth: true; label: "弱项队列"; meta: "" + root.weakCount }
-            NavItem { Layout.fillWidth: true; label: "全部五十音"; meta: "46" }
+            NavItem { Layout.fillWidth: true; label: root.korean ? "全部音节" : "全部五十音"; meta: "" + (root.counts.total || 0) }
             Item { height: 28; width: 1 }
             SectionLabel { text: "正面显示 · FRONT" }
             NavItem { Layout.fillWidth: true; label: "平假名"; active: true }

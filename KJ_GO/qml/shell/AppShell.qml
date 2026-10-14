@@ -11,61 +11,54 @@ Item {
     property bool katakana: false
     property string selectedRomaji: "a"
     property string filter: "all"
-    property var weakList: ["nu", "me", "ne"]
-    property var mastery: KanaCatalog.initialMastery()
+    property string language: "ja"
 
-    readonly property var counts: KanaCatalog.counts(mastery)
-    readonly property var selectedEntry: KanaCatalog.find(katakana, selectedRomaji)
+    readonly property string activeSet: language === "ko" ? "ko-syllable" : "ja-seion"
+    readonly property var counts: {
+        var rev = studyStore.revision
+        return studyStore.counts(root.activeSet)
+    }
+    readonly property int weakCount: {
+        var rev = studyStore.revision
+        return studyStore.weakIds(root.activeSet).length
+    }
+    readonly property int reviewCount: {
+        var rev = studyStore.revision
+        return studyStore.reviewQueue(root.activeSet, 12).length
+    }
 
     function showStudy(view) {
         currentModule = 0
         studyView = view
     }
 
-    function openDetail(romaji) {
-        selectedRomaji = romaji
-        showStudy("detail")
-    }
-
-    function copyMastery() {
-        var next = {}
-        for (var key in mastery)
-            next[key] = mastery[key]
-        return next
-    }
-
-    function markWeak() {
-        if (weakList.indexOf(selectedRomaji) < 0) {
-            var nextWeak = weakList.slice()
-            nextWeak.unshift(selectedRomaji)
-            weakList = nextWeak
-        }
-        var next = copyMastery()
-        next[selectedRomaji] = "learning"
-        mastery = next
-    }
-
-    function rateCard(romaji, score) {
-        var next = copyMastery()
-        next[romaji] = score === 3 ? "mastered" : "learning"
-        mastery = next
-        if (score === 1 && weakList.indexOf(romaji) < 0) {
-            var added = weakList.slice()
-            added.unshift(romaji)
-            weakList = added
-        }
-        if (score === 3)
-            weakList = weakList.filter(function (item) { return item !== romaji })
-    }
-
     Rectangle { anchors.fill: parent; color: Theme.bg }
+
+    AppSideBar {
+        id: sideBar
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        width: Theme.sideBarW
+        module: root.currentModule
+        language: root.language
+        studyView: root.studyView
+        filter: root.filter
+        counts: root.counts
+        weakCount: root.weakCount
+        reviewCount: root.reviewCount
+        onOpenStudy: root.showStudy(view)
+        onPickFilter: root.filter = id
+    }
 
     AppTopBar {
         id: topBar
         anchors.top: parent.top
-        anchors.left: parent.left
+        anchors.left: sideBar.right
         anchors.right: parent.right
         currentIndex: root.currentModule
+        language: root.language
+        onToggleLanguage: root.language = root.language === "ja" ? "ko" : "ja"
         onNavigate: {
             root.currentModule = index
             if (index === 0)
@@ -73,22 +66,6 @@ Item {
         }
         onToggleTheme: Theme.dark = !Theme.dark
         onOpenSettings: settingsPopup.open()
-    }
-
-    AppSideBar {
-        id: sideBar
-        anchors.top: topBar.bottom
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        width: Theme.sideBarW
-        module: root.currentModule
-        studyView: root.studyView
-        filter: root.filter
-        counts: root.counts
-        weakCount: root.weakList.length
-        selectedChar: root.selectedEntry ? root.selectedEntry.char : "あ"
-        onOpenStudy: root.showStudy(view)
-        onPickFilter: root.filter = id
     }
 
     StackLayout {
@@ -102,28 +79,24 @@ Item {
             KanaOverviewPage {
                 anchors.fill: parent
                 visible: root.studyView === "overview"
+                language: root.language
                 katakana: root.katakana
                 filter: root.filter
-                mastery: root.mastery
                 onToggleScript: root.katakana = katakana
-                onOpenDetail: root.openDetail(romaji)
             }
             KanaDetailPage {
                 anchors.fill: parent
                 visible: root.studyView === "detail"
                 katakana: root.katakana
                 romaji: root.selectedRomaji
-                mastery: root.mastery[root.selectedRomaji] || "new"
-                weak: root.weakList.indexOf(root.selectedRomaji) >= 0
+                mastery: "new"
+                weak: false
                 onBack: root.showStudy("overview")
                 onStep: root.selectedRomaji = KanaCatalog.step(root.selectedRomaji, direction)
-                onMarkWeak: root.markWeak()
             }
         }
         FlashcardPage {
-            mastery: root.mastery
-            weakList: root.weakList
-            onRate: root.rateCard(romaji, score)
+            setId: root.activeSet
             onExit: root.showStudy("overview")
         }
         ModulePlaceholder {
