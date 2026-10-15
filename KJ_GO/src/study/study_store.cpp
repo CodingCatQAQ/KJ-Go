@@ -207,7 +207,85 @@ bool StudyStore::migrate()
 
     QSqlQuery version(m_db);
     version.prepare(QStringLiteral("INSERT OR IGNORE INTO schema_meta (key, value) VALUES ('schema', '1')"));
-    return version.exec();
+    if (!version.exec()) {
+        m_error = version.lastError().text();
+        return false;
+    }
+    return upgradeMemory();
+}
+
+bool StudyStore::upgradeMemory()
+{
+    QSqlQuery version(m_db);
+    if (!version.exec(QStringLiteral("SELECT value FROM schema_meta WHERE key = 'schema'")) || !version.next()) {
+        m_error = version.lastError().text();
+        return false;
+    }
+    if (version.value(0).toInt() >= 2)
+        return true;
+
+    if (!m_db.transaction())
+        return false;
+    const bool ok = exec(QStringLiteral("UPDATE review_events SET result = 'right' WHERE result = 'good'"))
+        && exec(QStringLiteral("UPDATE review_events SET result = 'wrong' WHERE result = 'again' OR result = 'hard'"))
+        && exec(QStringLiteral("UPDATE memory SET last_result = NULL"))
+        && recomputeStatuses();
+    QSqlQuery bump(m_db);
+    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '2' WHERE key = 'schema'"));
+    if (!ok || !bump.exec() || !m_db.commit()) {
+        m_db.rollback();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("记忆状态没有升级");
+        return false;
+    }
+    return true;
+}
+
+QString StudyStore::statusFor(const QString &itemId) const
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT result FROM review_events WHERE item_id = ? ORDER BY id DESC LIMIT 10"));
+    query.addBindValue(itemId);
+    if (!query.exec())
+        return QStringLiteral("unlearned");
+
+    int attempts = 0;
+    int correct = 0;
+    while (query.next()) {
+        ++attempts;
+        if (query.value(0).toString() == QStringLiteral("right"))
+            ++correct;
+    }
+    if (attempts == 0 || correct * 2 < attempts)
+        return QStringLiteral("unlearned");
+    if (attempts >= 10 && correct * 10 >= attempts * 9)
+        return QStringLiteral("mastered");
+    return QStringLiteral("fuzzy");
+}
+
+bool StudyStore::recomputeStatuses()
+{
+    QSqlQuery ids(m_db);
+    if (!ids.exec(QStringLiteral("SELECT item_id FROM memory"))) {
+        m_error = ids.lastError().text();
+        return false;
+    }
+    QStringList itemIds;
+    while (ids.next())
+        itemIds.append(ids.value(0).toString());
+
+    for (const QString &itemId : itemIds) {
+        QSqlQuery update(m_db);
+        update.prepare(QStringLiteral("UPDATE memory SET status = ? WHERE item_id = ?"));
+        update.addBindValue(statusFor(itemId));
+        update.addBindValue(itemId);
+        if (!update.exec()) {
+            m_error = update.lastError().text();
+            return false;
+        }
+    }
+    return true;
 }
 
 bool StudyStore::insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload)
@@ -227,7 +305,7 @@ bool StudyStore::insertItem(const QString &id, const QString &lang, const QStrin
     QSqlQuery memory(m_db);
     memory.prepare(QStringLiteral(
         "INSERT INTO memory (item_id, status, last_result, streak, due, interval_days, ease) "
-        "VALUES (?, 'new', NULL, 0, NULL, NULL, NULL)"));
+        "VALUES (?, 'unlearned', NULL, 0, NULL, NULL, NULL)"));
     memory.addBindValue(id);
     if (!memory.exec()) {
         m_error = memory.lastError().text();
@@ -509,21 +587,20 @@ QVariantMap StudyStore::layout(const QString &layoutId) const
     QHash<QString, QVariantMap> cards;
     QSqlQuery items(m_db);
     items.prepare(QStringLiteral(
-        "SELECT i.id, i.payload, m.status, m.last_result "
+        "SELECT i.id, i.payload, m.status "
         "FROM items i LEFT JOIN memory m ON m.item_id = i.id WHERE i.set_id = ?"));
     items.addBindValue(setId);
     if (items.exec()) {
         while (items.next()) {
             const QJsonObject payload = QJsonDocument::fromJson(items.value(1).toString().toUtf8()).object();
-            const QString lastResult = items.value(3).toString();
+            const QString status = items.value(2).toString();
             cards.insert(items.value(0).toString(), QVariantMap{
                 {QStringLiteral("id"), items.value(0).toString()},
                 {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
                 {QStringLiteral("glyphAlt"), payload.value(QStringLiteral("glyphAlt")).toString()},
                 {QStringLiteral("reading"), payload.value(QStringLiteral("reading")).toString()},
                 {QStringLiteral("audio"), payload.value(QStringLiteral("audio")).toString()},
-                {QStringLiteral("status"), items.value(2).toString().isEmpty() ? QStringLiteral("new") : items.value(2).toString()},
-                {QStringLiteral("weak"), lastResult == QStringLiteral("again")},
+                {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
             });
         }
     }
@@ -570,14 +647,13 @@ QVariantMap StudyStore::item(const QString &itemId) const
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "SELECT i.lang, i.kind, i.set_id, i.payload, m.status, m.last_result, m.streak "
+        "SELECT i.lang, i.kind, i.set_id, i.payload, m.status, m.streak "
         "FROM items i LEFT JOIN memory m ON m.item_id = i.id WHERE i.id = ?"));
     query.addBindValue(itemId);
     if (!query.exec() || !query.next())
         return result;
 
     const QJsonObject payload = QJsonDocument::fromJson(query.value(3).toString().toUtf8()).object();
-    const QString lastResult = query.value(5).toString();
     QVariantList lookalikes;
     for (const QJsonValue &likeValue : payload.value(QStringLiteral("lookalikes")).toArray()) {
         QSqlQuery like(m_db);
@@ -609,13 +685,46 @@ QVariantMap StudyStore::item(const QString &itemId) const
     result.insert(QStringLiteral("columnLabel"), payload.value(QStringLiteral("columnLabel")).toString());
     result.insert(QStringLiteral("position"), payload.value(QStringLiteral("position")).toInt());
     result.insert(QStringLiteral("total"), payload.value(QStringLiteral("total")).toInt());
+    QString lastResult;
+    QSqlQuery latest(m_db);
+    latest.prepare(QStringLiteral(
+        "SELECT result FROM review_events WHERE item_id = ? ORDER BY id DESC LIMIT 1"));
+    latest.addBindValue(itemId);
+    if (latest.exec() && latest.next())
+        lastResult = latest.value(0).toString();
+
     result.insert(QStringLiteral("mnemonic"), payload.value(QStringLiteral("mnemonic")).toString());
     result.insert(QStringLiteral("lookalikes"), lookalikes);
-    result.insert(QStringLiteral("status"), query.value(4).toString().isEmpty() ? QStringLiteral("new") : query.value(4).toString());
+    result.insert(QStringLiteral("status"), query.value(4).toString().isEmpty() ? QStringLiteral("unlearned") : query.value(4).toString());
+    result.insert(QStringLiteral("streak"), query.value(5).toInt());
     result.insert(QStringLiteral("lastResult"), lastResult);
-    result.insert(QStringLiteral("streak"), query.value(6).toInt());
-    result.insert(QStringLiteral("weak"), lastResult == QStringLiteral("again"));
     return result;
+}
+
+void StudyStore::setMnemonic(const QString &itemId, const QString &text)
+{
+    if (!m_db.isOpen() || itemId.isEmpty())
+        return;
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("SELECT payload FROM items WHERE id = ?"));
+    query.addBindValue(itemId);
+    if (!query.exec() || !query.next())
+        return;
+
+    QJsonObject payload = QJsonDocument::fromJson(query.value(0).toString().toUtf8()).object();
+    if (payload.value(QStringLiteral("mnemonic")).toString() == text)
+        return;
+    payload.insert(QStringLiteral("mnemonic"), text);
+
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+    update.addBindValue(jsonText(payload));
+    update.addBindValue(itemId);
+    if (!update.exec())
+        return;
+    ++m_revision;
+    emit changed();
 }
 
 QVariantMap StudyStore::counts(const QString &setId) const
@@ -623,8 +732,8 @@ QVariantMap StudyStore::counts(const QString &setId) const
     QVariantMap result{
         {QStringLiteral("total"), 0},
         {QStringLiteral("mastered"), 0},
-        {QStringLiteral("learning"), 0},
-        {QStringLiteral("fresh"), 0},
+        {QStringLiteral("fuzzy"), 0},
+        {QStringLiteral("unlearned"), 0},
     };
     if (!m_db.isOpen())
         return result;
@@ -644,10 +753,10 @@ QVariantMap StudyStore::counts(const QString &setId) const
         total += count;
         if (status == QStringLiteral("mastered"))
             result.insert(QStringLiteral("mastered"), count);
-        else if (status == QStringLiteral("learning"))
-            result.insert(QStringLiteral("learning"), count);
+        else if (status == QStringLiteral("fuzzy"))
+            result.insert(QStringLiteral("fuzzy"), count);
         else
-            result.insert(QStringLiteral("fresh"), result.value(QStringLiteral("fresh")).toInt() + count);
+            result.insert(QStringLiteral("unlearned"), result.value(QStringLiteral("unlearned")).toInt() + count);
     }
     result.insert(QStringLiteral("total"), total);
     return result;
@@ -663,7 +772,33 @@ QStringList StudyStore::weakIds(const QString &setId) const
     query.prepare(QStringLiteral(
         "SELECT m.item_id, i.payload FROM memory m "
         "JOIN items i ON i.id = m.item_id "
-        "WHERE i.set_id = ? AND m.last_result = 'again'"));
+        "WHERE i.set_id = ? AND m.status = 'fuzzy'"));
+    query.addBindValue(setId);
+    if (!query.exec())
+        return ids;
+
+    QVector<QPair<int, QString>> ordered;
+    while (query.next()) {
+        const QJsonObject payload = QJsonDocument::fromJson(query.value(1).toString().toUtf8()).object();
+        ordered.append({payload.value(QStringLiteral("position")).toInt(), query.value(0).toString()});
+    }
+    std::sort(ordered.begin(), ordered.end(), [](const QPair<int, QString> &left, const QPair<int, QString> &right) {
+        return left.first < right.first;
+    });
+    for (const auto &entry : ordered)
+        ids.append(entry.second);
+    return ids;
+}
+
+QStringList StudyStore::itemIds(const QString &setId) const
+{
+    QStringList ids;
+    if (!m_db.isOpen())
+        return ids;
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT i.id, i.payload FROM items i WHERE i.set_id = ?"));
     query.addBindValue(setId);
     if (!query.exec())
         return ids;
@@ -689,7 +824,7 @@ QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "SELECT i.id, i.payload, m.status, m.last_result FROM items i "
+        "SELECT i.id, i.payload, m.status FROM items i "
         "JOIN memory m ON m.item_id = i.id WHERE i.set_id = ?"));
     query.addBindValue(setId);
     if (!query.exec())
@@ -703,14 +838,11 @@ QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
     QVector<Candidate> candidates;
     while (query.next()) {
         const QString status = query.value(2).toString();
-        const QString lastResult = query.value(3).toString();
         int bucket = -1;
-        if (lastResult == QStringLiteral("again"))
+        if (status == QStringLiteral("fuzzy"))
             bucket = 0;
-        else if (status == QStringLiteral("learning"))
+        else if (status != QStringLiteral("mastered"))
             bucket = 1;
-        else if (status == QStringLiteral("new"))
-            bucket = 2;
         if (bucket < 0)
             continue;
         const QJsonObject payload = QJsonDocument::fromJson(query.value(1).toString().toUtf8()).object();
@@ -727,15 +859,13 @@ QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
     return ids;
 }
 
-void StudyStore::rate(const QString &itemId, int score, const QString &activity, const QString &prompt)
+void StudyStore::rate(const QString &itemId, bool correct, const QString &activity, const QString &prompt)
 {
-    if (!m_db.isOpen() || itemId.isEmpty() || score < 1 || score > 3)
+    if (!m_db.isOpen() || itemId.isEmpty())
         return;
 
-    const QString result = score == 1 ? QStringLiteral("again") : score == 2 ? QStringLiteral("hard") : QStringLiteral("good");
-    const QString status = score == 3 ? QStringLiteral("mastered") : QStringLiteral("learning");
     int streak = 0;
-    if (score == 3) {
+    if (correct) {
         QSqlQuery current(m_db);
         current.prepare(QStringLiteral("SELECT streak FROM memory WHERE item_id = ?"));
         current.addBindValue(itemId);
@@ -746,12 +876,6 @@ void StudyStore::rate(const QString &itemId, int score, const QString &activity,
     if (!m_db.transaction())
         return;
 
-    QSqlQuery update(m_db);
-    update.prepare(QStringLiteral("UPDATE memory SET status = ?, last_result = ?, streak = ? WHERE item_id = ?"));
-    update.addBindValue(status);
-    update.addBindValue(result);
-    update.addBindValue(streak);
-    update.addBindValue(itemId);
     QSqlQuery event(m_db);
     event.prepare(QStringLiteral(
         "INSERT INTO review_events (item_id, at, activity, prompt, result, session_id) "
@@ -760,9 +884,19 @@ void StudyStore::rate(const QString &itemId, int score, const QString &activity,
     event.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
     event.addBindValue(activity);
     event.addBindValue(prompt);
-    event.addBindValue(result);
+    event.addBindValue(correct ? QStringLiteral("right") : QStringLiteral("wrong"));
+    if (!event.exec()) {
+        m_db.rollback();
+        return;
+    }
 
-    if (!update.exec() || update.numRowsAffected() != 1 || !event.exec() || !m_db.commit()) {
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral("UPDATE memory SET status = ?, streak = ? WHERE item_id = ?"));
+    update.addBindValue(statusFor(itemId));
+    update.addBindValue(streak);
+    update.addBindValue(itemId);
+
+    if (!update.exec() || update.numRowsAffected() != 1 || !m_db.commit()) {
         m_db.rollback();
         return;
     }

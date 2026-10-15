@@ -5,7 +5,7 @@ Rectangle {
     id: root
     property string kana: "あ"
     property string romaji: "a"
-    property string mastery: "new"
+    property string mastery: "unlearned"
     property bool dimmed: false
     signal activated()
 
@@ -56,7 +56,7 @@ Rectangle {
         font.letterSpacing: root.romaji.length > 3 ? 0.2 : 1.6
     }
     Rectangle {
-        visible: root.mastery === "learning"
+        visible: root.mastery === "fuzzy"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.leftMargin: 18

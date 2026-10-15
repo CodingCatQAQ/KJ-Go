@@ -19,8 +19,10 @@ public:
     Q_INVOKABLE QVariantMap item(const QString &itemId) const;
     Q_INVOKABLE QVariantMap counts(const QString &setId) const;
     Q_INVOKABLE QStringList weakIds(const QString &setId) const;
+    Q_INVOKABLE QStringList itemIds(const QString &setId) const;
     Q_INVOKABLE QStringList reviewQueue(const QString &setId, int limit) const;
-    Q_INVOKABLE void rate(const QString &itemId, int score, const QString &activity, const QString &prompt);
+    Q_INVOKABLE void rate(const QString &itemId, bool correct, const QString &activity, const QString &prompt);
+    Q_INVOKABLE void setMnemonic(const QString &itemId, const QString &text);
 
 signals:
     void changed();
@@ -32,6 +34,9 @@ private:
     bool seedJapanese();
     bool seedKorean();
     bool exec(const QString &sql);
+    bool upgradeMemory();
+    bool recomputeStatuses();
+    QString statusFor(const QString &itemId) const;
     bool insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload);
     bool insertFace(const QString &itemId, const QString &promptKind, const QVariantMap &prompt, const QVariantMap &answer);
 

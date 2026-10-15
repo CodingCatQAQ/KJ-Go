@@ -11,8 +11,12 @@ Item {
     property var counts: ({ total: 0, mastered: 0, learning: 0, fresh: 0 })
     property int weakCount: 0
     property int reviewCount: 0
+    property string queueMode: "today"
+    property string frontScript: "hira"
     signal openStudy(string view)
     signal pickFilter(string id)
+    signal pickQueue(string id)
+    signal pickFront(string id)
 
     readonly property bool korean: language === "ko"
     readonly property int masteredPct: counts.total > 0 ? Math.round(counts.mastered / counts.total * 100) : 0
@@ -185,14 +189,52 @@ Item {
             spacing: 2
             Layout.fillWidth: true
             SectionLabel { text: "复习队列 · QUEUE" }
-            NavItem { Layout.fillWidth: true; label: "今日复习"; meta: "" + root.reviewCount; active: true }
-            NavItem { Layout.fillWidth: true; label: "弱项队列"; meta: "" + root.weakCount }
-            NavItem { Layout.fillWidth: true; label: root.korean ? "全部音节" : "全部五十音"; meta: "" + (root.counts.total || 0) }
-            Item { height: 28; width: 1 }
-            SectionLabel { text: "正面显示 · FRONT" }
-            NavItem { Layout.fillWidth: true; label: "平假名"; active: true }
-            NavItem { Layout.fillWidth: true; label: "片假名" }
-            NavItem { Layout.fillWidth: true; label: "随机混合" }
+            NavItem {
+                Layout.fillWidth: true
+                label: "今日复习"
+                meta: "" + root.reviewCount
+                active: root.queueMode === "today"
+                onPicked: root.pickQueue("today")
+            }
+            NavItem {
+                Layout.fillWidth: true
+                label: "模糊"
+                meta: "" + root.weakCount
+                active: root.queueMode === "fuzzy"
+                onPicked: root.pickQueue("fuzzy")
+            }
+            NavItem {
+                Layout.fillWidth: true
+                label: root.korean ? "全部音节" : "全部五十音"
+                meta: "" + (root.counts.total || 0)
+                active: root.queueMode === "all"
+                onPicked: root.pickQueue("all")
+            }
+            Item { visible: !root.korean; height: 28; width: 1 }
+            ColumnLayout {
+                visible: !root.korean
+                spacing: 2
+                Layout.fillWidth: true
+                SectionLabel { text: "正面显示 · FRONT" }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "平假名"
+                    active: root.frontScript === "hira"
+                    onPicked: root.pickFront("hira")
+                }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "片假名"
+                    active: root.frontScript === "kata"
+                    onPicked: root.pickFront("kata")
+                }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "随机混合"
+                    active: root.frontScript === "mix"
+                    onPicked: root.pickFront("mix")
+                }
+            }
         }
 
         ColumnLayout {

@@ -50,12 +50,34 @@ Item {
             kanaPlayer.play(audio)
     }
 
-    function pad(value, width) {
-        var text = "" + value
-        while (text.length < width)
-            text = "0" + text
-        return text
+    function statusText(status) {
+        if (status === "mastered")
+            return "已掌握"
+        if (status === "fuzzy")
+            return "模糊"
+        return "未掌握"
     }
+
+    function statusColor(status) {
+        if (status === "mastered")
+            return Theme.primary
+        if (status === "fuzzy")
+            return Theme.textMuted
+        return Theme.accent
+    }
+
+    property string mnemonicItem: ""
+
+    function loadMnemonic() {
+        if (mnemonicItem && mnemonicItem !== root.hovered)
+            studyStore.setMnemonic(mnemonicItem, mnemonicEdit.text)
+        mnemonicItem = root.hovered
+        var card = root.hovered ? studyStore.item(root.hovered) : ({})
+        mnemonicEdit.text = card && card.mnemonic ? card.mnemonic : ""
+    }
+
+    onHoveredChanged: loadMnemonic()
+    Component.onCompleted: loadMnemonic()
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
 
@@ -88,6 +110,36 @@ Item {
                     font.pixelSize: Theme.title
                     font.bold: true
                 }
+            }
+            Row {
+                Layout.alignment: Qt.AlignBottom
+                spacing: 4
+
+                component FilterChip: Rectangle {
+                    id: chip
+                    property string label: ""
+                    property string key: "all"
+                    property color ink: Theme.text
+                    implicitWidth: chipLabel.implicitWidth + 20
+                    implicitHeight: 32
+                    radius: Theme.radiusSm
+                    color: root.filter === key ? Theme.text : "transparent"
+                    Text {
+                        id: chipLabel
+                        anchors.centerIn: parent
+                        text: chip.label
+                        color: root.filter === chip.key ? Theme.bg : chip.ink
+                        font.family: Theme.fontBody
+                        font.pixelSize: 14
+                        font.bold: root.filter === chip.key
+                    }
+                    TapHandler { onTapped: root.filter = chip.key }
+                }
+
+                FilterChip { label: "全部"; key: "all"; ink: Theme.text }
+                FilterChip { label: "已掌握"; key: "mastered"; ink: Theme.primary }
+                FilterChip { label: "模糊"; key: "fuzzy"; ink: Theme.textMuted }
+                FilterChip { label: "未掌握"; key: "unlearned"; ink: Theme.accent }
             }
             Item { Layout.fillWidth: true }
             ScriptToggle {
@@ -198,7 +250,7 @@ Item {
                                             return slot.modelData.glyphAlt
                                         return slot.modelData.glyph
                                     }
-                                    readonly property string status: slot.modelData && slot.modelData.status ? slot.modelData.status : "new"
+                                    readonly property string status: slot.modelData && slot.modelData.status ? slot.modelData.status : "unlearned"
                                     width: (chart.width - root.rowHeadW - root.chartCols * 8) / root.chartCols
                                     height: 64
 
@@ -348,76 +400,43 @@ Item {
                     }
                 }
 
-                Text {
-                    visible: root.entry && root.entry.mnemonic !== ""
-                    width: parent.width
-                    topPadding: 16
-                    wrapMode: Text.WordWrap
-                    text: root.entry ? root.entry.mnemonic : ""
-                    color: Theme.textMuted
-                    font.family: Theme.fontBody
-                    font.pixelSize: 14
-                    lineHeight: 1.45
-                }
-
                 Item { width: 1; height: 28 }
                 Column {
+                    spacing: 6
+                    Text { text: "状态"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
+                    Text {
+                        text: root.statusText(root.entry ? root.entry.status : "")
+                        color: root.statusColor(root.entry ? root.entry.status : "")
+                        font.pixelSize: 16
+                        font.bold: true
+                        font.family: Theme.fontBody
+                    }
+                }
+
+                Item { width: 1; height: 22 }
+                Text {
+                    text: "联想"
+                    color: Theme.textMuted
+                    font.pixelSize: 10
+                    font.letterSpacing: 1.8
+                    font.family: Theme.fontBody
+                }
+                TextArea {
+                    id: mnemonicEdit
                     width: parent.width
-                    spacing: 18
-
-                    Row {
-                        width: parent.width
-                        spacing: 28
-                        Column {
-                            spacing: 6
-                            Text { text: "位置"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                            Text {
-                                text: root.entry && root.entry.rowLabel ? root.entry.rowLabel + " · " + root.entry.columnLabel : ""
-                                color: Theme.text
-                                font.pixelSize: 16
-                                font.family: Theme.fontBody
-                            }
-                        }
-                        Column {
-                            spacing: 6
-                            Text { text: "顺序"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                            Text {
-                                text: root.entry && root.entry.position
-                                      ? root.pad(root.entry.position, root.korean ? 3 : 2) + "  /  " + root.entry.total
-                                      : ""
-                                color: Theme.text
-                                font.pixelSize: 16
-                                font.family: Theme.fontBody
-                            }
-                        }
-                    }
-
-                    Column {
-                        visible: root.entry && root.entry.lookalikes && root.entry.lookalikes.length > 0
-                        spacing: 8
-                        Text { text: "易混"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                        Row {
-                            spacing: 16
-                            Repeater {
-                                model: root.entry && root.entry.lookalikes ? root.entry.lookalikes : []
-                                delegate: Text {
-                                    required property var modelData
-                                    text: root.katakana && modelData.glyphAlt ? modelData.glyphAlt : modelData.glyph
-                                    color: Theme.text
-                                    font.family: Theme.fontDisplay
-                                    font.pixelSize: 32
-                                    font.bold: true
-                                }
-                            }
-                        }
-                    }
-
-                    Column {
-                        visible: root.entry && root.entry.weak
-                        spacing: 6
-                        Text { text: "弱项"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                        Text { text: "在复习队列里"; color: Theme.accent; font.pixelSize: 16; font.family: Theme.fontBody }
-                    }
+                    height: 120
+                    topPadding: 4
+                    bottomPadding: 4
+                    leftPadding: 0
+                    rightPadding: 0
+                    wrapMode: TextArea.Wrap
+                    placeholderText: "写下你的联想"
+                    color: Theme.text
+                    placeholderTextColor: Theme.textMuted
+                    font.family: Theme.fontBody
+                    font.pixelSize: 14
+                    background: Rectangle { color: "transparent" }
+                    onEditingFinished: studyStore.setMnemonic(root.hovered, text)
                 }
             }
             }

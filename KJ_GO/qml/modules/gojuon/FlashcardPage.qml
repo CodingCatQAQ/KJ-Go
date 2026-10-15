@@ -6,14 +6,17 @@ import "../../components"
 Item {
     id: root
     property string setId: "ja-seion"
+    property string queueMode: "today"
+    property string frontScript: "hira"
     signal exit()
 
     property var queue: []
     property int index: 0
     property bool flipped: false
-    property int forgot: 0
-    property int fuzzy: 0
-    property int known: 0
+    property int correctCount: 0
+    property int wrongCount: 0
+    property bool cardsReady: false
+    property var frontPick: ({})
 
     readonly property bool finished: queue.length === 0 || index >= queue.length
     readonly property string currentId: queue.length === 0 ? "" : queue[Math.min(index, queue.length - 1)]
@@ -22,31 +25,110 @@ Item {
         return root.currentId ? studyStore.item(root.currentId) : null
     }
 
-    function reload() {
-        queue = studyStore.reviewQueue(setId, 12)
-        index = 0
+    function showFront() {
+        if (!cardsReady)
+            return
+        flipBehavior.enabled = false
         flipped = false
-        forgot = 0
-        fuzzy = 0
-        known = 0
+        flipBehavior.enabled = true
     }
 
-    function choose(score) {
+    function shuffle(ids) {
+        var list = []
+        for (var i = 0; i < ids.length; ++i)
+            list.push(ids[i])
+        for (var j = list.length - 1; j > 0; --j) {
+            var k = Math.floor(Math.random() * (j + 1))
+            var tmp = list[j]
+            list[j] = list[k]
+            list[k] = tmp
+        }
+        return list
+    }
+
+    function loadQueue() {
+        if (queueMode === "fuzzy")
+            return studyStore.weakIds(setId)
+        if (queueMode === "all")
+            return shuffle(studyStore.itemIds(setId))
+        return studyStore.reviewQueue(setId, 12)
+    }
+
+    function buildFrontPick(ids) {
+        var pick = {}
+        for (var i = 0; i < ids.length; ++i) {
+            var card = studyStore.item(ids[i])
+            pick[ids[i]] = (card && card.glyphAlt && Math.random() < 0.5) ? "kata" : "hira"
+        }
+        frontPick = pick
+    }
+
+    function showingKata(entry) {
+        if (!entry || !entry.glyphAlt)
+            return false
+        if (frontScript === "kata")
+            return true
+        if (frontScript === "mix")
+            return frontPick[entry.id] === "kata"
+        return false
+    }
+
+    function frontGlyph(entry) {
+        if (!entry)
+            return ""
+        return showingKata(entry) ? entry.glyphAlt : entry.glyph
+    }
+
+    function frontCaption(entry) {
+        if (!entry)
+            return "FRONT"
+        var label = showingKata(entry) ? entry.pairRightLabel : entry.pairLeftLabel
+        return (label ? label : "") + " · FRONT"
+    }
+
+    function queueTitle() {
+        if (queueMode === "fuzzy")
+            return "模糊 · FUZZY"
+        if (queueMode === "all")
+            return "全部 · ALL"
+        return "今日复习 · REVIEW"
+    }
+
+    function reload() {
+        var ids = loadQueue()
+        buildFrontPick(ids)
+        queue = ids
+        index = 0
+        correctCount = 0
+        wrongCount = 0
+        if (cardsReady)
+            showFront()
+        else
+            flipped = false
+    }
+
+    function choose(correct) {
         if (!flipped || finished || !currentId)
             return
-        studyStore.rate(currentId, score, "flashcard", "glyph-to-reading")
-        if (score === 1)
-            forgot += 1
-        else if (score === 2)
-            fuzzy += 1
+        studyStore.rate(currentId, correct, "flashcard", "glyph-to-reading")
+        if (correct)
+            correctCount += 1
         else
-            known += 1
-        flipped = false
+            wrongCount += 1
+        showFront()
         index += 1
     }
 
     onSetIdChanged: reload()
-    Component.onCompleted: reload()
+    onQueueModeChanged: reload()
+    onFrontScriptChanged: {
+        if (frontScript === "mix")
+            buildFrontPick(queue)
+    }
+    Component.onCompleted: {
+        cardsReady = true
+        reload()
+    }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
 
@@ -61,7 +143,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Text {
-                text: "今日复习 · REVIEW"
+                text: root.queueTitle()
                 color: Theme.textMuted
                 font.family: Theme.fontBody
                 font.pixelSize: 11
@@ -134,18 +216,13 @@ Item {
                 spacing: 48
                 Column {
                     spacing: 4
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.forgot; font.pixelSize: 28; font.bold: true; color: Theme.text; font.family: Theme.fontBody }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "忘了"; color: Theme.textMuted; font.pixelSize: 12; font.family: Theme.fontBody }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.wrongCount; font.pixelSize: 28; font.bold: true; color: Theme.text; font.family: Theme.fontBody }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "错了"; color: Theme.textMuted; font.pixelSize: 12; font.family: Theme.fontBody }
                 }
                 Column {
                     spacing: 4
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.fuzzy; font.pixelSize: 28; font.bold: true; color: Theme.text; font.family: Theme.fontBody }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "模糊"; color: Theme.textMuted; font.pixelSize: 12; font.family: Theme.fontBody }
-                }
-                Column {
-                    spacing: 4
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.known; font.pixelSize: 28; font.bold: true; color: Theme.text; font.family: Theme.fontBody }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "会了"; color: Theme.textMuted; font.pixelSize: 12; font.family: Theme.fontBody }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.correctCount; font.pixelSize: 28; font.bold: true; color: Theme.text; font.family: Theme.fontBody }
+                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "对了"; color: Theme.textMuted; font.pixelSize: 12; font.family: Theme.fontBody }
                 }
             }
             Rectangle {
@@ -184,11 +261,13 @@ Item {
                     anchors.fill: parent
                     transform: Rotation {
                         id: spin
-                        origin.x: inner.width / 2
-                        origin.y: inner.height / 2
-                        axis { x: 0; y: 1; z: 0 }
+                        origin: Qt.vector3d(inner.width / 2, inner.height / 2, 0)
+                        axis: Qt.vector3d(0, 1, 0)
                         angle: root.flipped ? 180 : 0
-                        Behavior on angle { NumberAnimation { duration: Theme.durFlip; easing.type: Easing.InOutCubic } }
+                        Behavior on angle {
+                            id: flipBehavior
+                            NumberAnimation { duration: Theme.durFlip; easing.type: Easing.InOutCubic }
+                        }
                     }
 
                     Rectangle {
@@ -198,12 +277,14 @@ Item {
                         color: Theme.surface
                         border.width: 1
                         border.color: Theme.border
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: (root.entry && root.entry.pairLeftLabel ? root.entry.pairLeftLabel : "") + " · FRONT"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
-                        Text { anchors.centerIn: parent; text: root.entry ? root.entry.glyph : ""; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: Theme.kanaHero; font.bold: true }
+                        MouseArea { anchors.fill: parent; onClicked: root.flipped = true }
+                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: root.frontCaption(root.entry); color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
+                        Text { anchors.centerIn: parent; text: root.frontGlyph(root.entry); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: Theme.kanaHero; font.bold: true }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 28; text: "它读作什么？"; color: Theme.textMuted; font.pixelSize: 11; font.letterSpacing: 1.4; font.family: Theme.fontBody }
                     }
 
                     Rectangle {
+                        id: backFace
                         anchors.fill: parent
                         visible: spin.angle >= 90 && spin.angle <= 270
                         radius: 12
@@ -211,23 +292,100 @@ Item {
                         border.width: 1
                         border.color: Theme.border
                         transform: Rotation {
-                            origin.x: width / 2
-                            origin.y: height / 2
-                            axis { x: 0; y: 1; z: 0 }
+                            origin: Qt.vector3d(backFace.width / 2, backFace.height / 2, 0)
+                            axis: Qt.vector3d(0, 1, 0)
                             angle: 180
                         }
+                        MouseArea { anchors.fill: parent; onClicked: root.flipped = false }
                         Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 2; color: Theme.primary }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: "答案 · BACK"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
                         Column {
                             anchors.centerIn: parent
                             spacing: 20
-                            Text {
+                            Item {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: root.entry && root.entry.reading ? root.entry.reading.toUpperCase() : ""
-                                color: Theme.text
-                                font.family: Theme.fontBody
-                                font.pixelSize: 48
-                                font.letterSpacing: root.entry && root.entry.reading && root.entry.reading.length > 3 ? 2 : 8
+                                width: readingText.implicitWidth + (cardSpeaker.visible ? 46 : 0)
+                                height: readingText.implicitHeight
+                                Text {
+                                    id: readingText
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.entry && root.entry.reading ? root.entry.reading.toUpperCase() : ""
+                                    color: Theme.text
+                                    font.family: Theme.fontBody
+                                    font.pixelSize: 48
+                                    font.letterSpacing: root.entry && root.entry.reading && root.entry.reading.length > 3 ? 2 : 8
+                                }
+                                Item {
+                                    id: cardSpeaker
+                                    width: 36
+                                    height: 36
+                                    anchors.left: readingText.right
+                                    anchors.leftMargin: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: root.entry && root.entry.audio !== ""
+                                    readonly property bool playing: kanaPlayer.playing
+                                    property int wave: 3
+                                    property color ink: playing ? Theme.text : (cardSpeakerHover.hovered ? Theme.text : Theme.textMuted)
+
+                                    Timer {
+                                        interval: 160
+                                        repeat: true
+                                        running: cardSpeaker.playing
+                                        onTriggered: cardSpeaker.wave = cardSpeaker.wave % 3 + 1
+                                    }
+                                    onPlayingChanged: {
+                                        if (!cardSpeaker.playing)
+                                            cardSpeaker.wave = 3
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 18
+                                        color: cardSpeakerHover.hovered ? Theme.muted : "transparent"
+                                    }
+                                    Canvas {
+                                        id: cardHorn
+                                        width: 22
+                                        height: 16
+                                        anchors.centerIn: parent
+                                        onPaint: {
+                                            var ctx = getContext("2d")
+                                            ctx.clearRect(0, 0, width, height)
+                                            ctx.globalAlpha = 1
+                                            ctx.fillStyle = cardSpeaker.ink
+                                            ctx.beginPath()
+                                            ctx.moveTo(1, 5)
+                                            ctx.lineTo(5, 5)
+                                            ctx.lineTo(10, 1)
+                                            ctx.lineTo(10, 15)
+                                            ctx.lineTo(5, 11)
+                                            ctx.lineTo(1, 11)
+                                            ctx.closePath()
+                                            ctx.fill()
+                                            ctx.strokeStyle = cardSpeaker.ink
+                                            ctx.lineWidth = 1.5
+                                            ctx.lineCap = "round"
+                                            for (var i = 0; i < 3; ++i) {
+                                                ctx.globalAlpha = cardSpeaker.playing ? (i < cardSpeaker.wave ? 1 : 0.18) : 0.45
+                                                ctx.beginPath()
+                                                ctx.arc(11, 8, 3.2 + i * 3.1, -0.9, 0.9)
+                                                ctx.stroke()
+                                            }
+                                        }
+                                    }
+                                    onInkChanged: cardHorn.requestPaint()
+                                    onWaveChanged: cardHorn.requestPaint()
+                                    HoverHandler { id: cardSpeakerHover }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (root.entry && root.entry.audio)
+                                                kanaPlayer.play(root.entry.audio)
+                                        }
+                                    }
+                                }
                             }
                             Row {
                                 anchors.horizontalCenter: parent.horizontalCenter
@@ -259,7 +417,6 @@ Item {
                         }
                     }
 
-                    TapHandler { onTapped: root.flipped = !root.flipped }
                 }
             }
 
@@ -280,49 +437,37 @@ Item {
                     anchors.centerIn: parent
                     spacing: 12
                     Rectangle {
-                        width: 120
+                        width: 160
                         height: 64
                         radius: Theme.radiusMd
-                        color: forgotHover.hovered ? Theme.accent : "transparent"
+                        color: wrongHover.hovered ? Theme.accent : "transparent"
                         border.width: 1
                         border.color: Theme.accent
-                        Column {
+                        Text {
                             anchors.centerIn: parent
-                            spacing: 2
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "1  忘了"; color: forgotHover.hovered ? Theme.primaryFg : Theme.accent; font.pixelSize: 14; font.bold: true; font.family: Theme.fontBody }
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "< 1 分钟"; color: forgotHover.hovered ? Theme.primaryFg : Theme.accent; font.pixelSize: 10; font.family: Theme.fontBody; opacity: 0.7 }
+                            text: "错了"
+                            color: wrongHover.hovered ? Theme.primaryFg : Theme.accent
+                            font.pixelSize: 16
+                            font.bold: true
+                            font.family: Theme.fontBody
                         }
-                        HoverHandler { id: forgotHover }
-                        TapHandler { onTapped: root.choose(1) }
+                        HoverHandler { id: wrongHover }
+                        TapHandler { onTapped: root.choose(false) }
                     }
                     Rectangle {
-                        width: 120
-                        height: 64
-                        radius: Theme.radiusMd
-                        color: "transparent"
-                        border.width: 1
-                        border.color: fuzzyHover.hovered ? Theme.text : Theme.line
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 2
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "2  模糊"; color: Theme.text; font.pixelSize: 14; font.bold: true; font.family: Theme.fontBody }
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "10 分钟"; color: Theme.textMuted; font.pixelSize: 10; font.family: Theme.fontBody }
-                        }
-                        HoverHandler { id: fuzzyHover }
-                        TapHandler { onTapped: root.choose(2) }
-                    }
-                    Rectangle {
-                        width: 120
+                        width: 160
                         height: 64
                         radius: Theme.radiusMd
                         color: Theme.primary
-                        Column {
+                        Text {
                             anchors.centerIn: parent
-                            spacing: 2
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "3  会了"; color: Theme.primaryFg; font.pixelSize: 14; font.bold: true; font.family: Theme.fontBody }
-                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "3 天"; color: Theme.primaryFg; font.pixelSize: 10; font.family: Theme.fontBody; opacity: 0.75 }
+                            text: "对了"
+                            color: Theme.primaryFg
+                            font.pixelSize: 16
+                            font.bold: true
+                            font.family: Theme.fontBody
                         }
-                        TapHandler { onTapped: root.choose(3) }
+                        TapHandler { onTapped: root.choose(true) }
                     }
                 }
             }

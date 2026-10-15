@@ -12,6 +12,8 @@ Item {
     property string selectedRomaji: "a"
     property string filter: "all"
     property string language: "ja"
+    property string flashQueue: "today"
+    property string flashFront: "hira"
 
     readonly property string activeSet: language === "ko" ? "ko-syllable" : "ja-seion"
     readonly property var counts: {
@@ -47,8 +49,12 @@ Item {
         counts: root.counts
         weakCount: root.weakCount
         reviewCount: root.reviewCount
+        queueMode: root.flashQueue
+        frontScript: root.flashFront
         onOpenStudy: root.showStudy(view)
         onPickFilter: root.filter = id
+        onPickQueue: root.flashQueue = id
+        onPickFront: root.flashFront = id
     }
 
     AppTopBar {
@@ -81,7 +87,6 @@ Item {
                 visible: root.studyView === "overview"
                 language: root.language
                 katakana: root.katakana
-                filter: root.filter
                 onToggleScript: root.katakana = katakana
             }
             KanaDetailPage {
@@ -97,6 +102,8 @@ Item {
         }
         FlashcardPage {
             setId: root.activeSet
+            queueMode: root.flashQueue
+            frontScript: root.flashFront
             onExit: root.showStudy("overview")
         }
         ModulePlaceholder {
