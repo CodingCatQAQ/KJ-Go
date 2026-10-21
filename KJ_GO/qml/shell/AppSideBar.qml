@@ -19,6 +19,18 @@ Item {
     signal pickFront(string id)
 
     readonly property bool korean: language === "ko"
+    readonly property int syllableTotal: {
+        var rev = studyStore.revision
+        var counts = studyStore.counts(root.korean ? "ko-syllable" : "ja-seion")
+        return counts && counts.total ? counts.total : 0
+    }
+    readonly property int vocabTotal: {
+        var rev = studyStore.revision
+        var counts = studyStore.counts(root.korean ? "ko-vocab" : "ja-vocab")
+        return counts && counts.total ? counts.total : 0
+    }
+    readonly property string koFront: (frontScript === "gloss" || frontScript === "mix" || frontScript === "word") ? frontScript : "word"
+    readonly property string jaFront: (frontScript === "kata" || frontScript === "mix" || frontScript === "hira") ? frontScript : "hira"
     readonly property int masteredPct: counts.total > 0 ? Math.round(counts.mastered / counts.total * 100) : 0
 
     component SectionLabel: Text {
@@ -167,9 +179,16 @@ Item {
             NavItem {
                 Layout.fillWidth: true
                 label: root.korean ? "音节总览" : "清音总览"
-                meta: "" + (root.counts.total || 0)
+                meta: "" + root.syllableTotal
                 active: root.studyView === "overview"
                 onPicked: root.openStudy("overview")
+            }
+            NavItem {
+                Layout.fillWidth: true
+                label: "词汇"
+                meta: "" + root.vocabTotal
+                active: root.studyView === "vocab"
+                onPicked: root.openStudy("vocab")
             }
             NavItem { visible: !root.korean; Layout.fillWidth: true; label: "浊音 · 半浊音"; soon: true }
             NavItem { visible: !root.korean; Layout.fillWidth: true; label: "拗音"; soon: true }
@@ -179,7 +198,6 @@ Item {
                 spacing: 2
                 Layout.fillWidth: true
                 SectionLabel { text: "后续模块 · NEXT" }
-                NavItem { Layout.fillWidth: true; label: "词汇"; soon: true }
                 NavItem { Layout.fillWidth: true; label: "语法"; soon: true }
             }
         }
@@ -205,12 +223,12 @@ Item {
             }
             NavItem {
                 Layout.fillWidth: true
-                label: root.korean ? "全部音节" : "全部五十音"
+                label: root.korean ? "全部词汇" : "全部五十音"
                 meta: "" + (root.counts.total || 0)
                 active: root.queueMode === "all"
                 onPicked: root.pickQueue("all")
             }
-            Item { visible: !root.korean; height: 28; width: 1 }
+            Item { height: 28; width: 1 }
             ColumnLayout {
                 visible: !root.korean
                 spacing: 2
@@ -219,19 +237,43 @@ Item {
                 NavItem {
                     Layout.fillWidth: true
                     label: "平假名"
-                    active: root.frontScript === "hira"
+                    active: root.jaFront === "hira"
                     onPicked: root.pickFront("hira")
                 }
                 NavItem {
                     Layout.fillWidth: true
                     label: "片假名"
-                    active: root.frontScript === "kata"
+                    active: root.jaFront === "kata"
                     onPicked: root.pickFront("kata")
                 }
                 NavItem {
                     Layout.fillWidth: true
                     label: "随机混合"
-                    active: root.frontScript === "mix"
+                    active: root.jaFront === "mix"
+                    onPicked: root.pickFront("mix")
+                }
+            }
+            ColumnLayout {
+                visible: root.korean
+                spacing: 2
+                Layout.fillWidth: true
+                SectionLabel { text: "正面显示 · FRONT" }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "韩语单词"
+                    active: root.koFront === "word"
+                    onPicked: root.pickFront("word")
+                }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "中文释义"
+                    active: root.koFront === "gloss"
+                    onPicked: root.pickFront("gloss")
+                }
+                NavItem {
+                    Layout.fillWidth: true
+                    label: "随机混合"
+                    active: root.koFront === "mix"
                     onPicked: root.pickFront("mix")
                 }
             }

@@ -12,6 +12,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QVariantList>
 #include <QVector>
 
@@ -86,12 +87,32 @@ QString hangulSyllable(int initial, int medial)
     return QString(QChar(0xAC00 + (initial * 21 + medial) * 28));
 }
 
+QJsonArray relatedIds(const QString &lang, const QJsonObject &word)
+{
+    QJsonArray likes;
+    const QJsonArray related = word.value(QStringLiteral("related")).toArray();
+    for (const QJsonValue &value : related) {
+        const QString slug = value.toString();
+        if (!slug.isEmpty())
+            likes.append(lang + QStringLiteral(":vocab:") + slug);
+    }
+    return likes;
+}
+
+const QStringList kEditableFields = {
+    QStringLiteral("gloss"),
+    QStringLiteral("example"),
+    QStringLiteral("exampleGloss"),
+    QStringLiteral("note"),
+    QStringLiteral("mnemonic"),
+};
+
 }
 
 StudyStore::StudyStore(QObject *parent)
     : QObject(parent)
 {
-    if (!openDatabase() || !migrate() || !seedIfEmpty())
+    if (!openDatabase() || !migrate() || !seedIfEmpty() || !ensureKoreanVocab())
         return;
 }
 
@@ -288,13 +309,14 @@ bool StudyStore::recomputeStatuses()
     return true;
 }
 
-bool StudyStore::insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload)
+bool StudyStore::insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload, const QString &kind)
 {
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "INSERT INTO items (id, lang, kind, set_id, payload, links) VALUES (?, ?, 'syllable', ?, ?, '[]')"));
+        "INSERT INTO items (id, lang, kind, set_id, payload, links) VALUES (?, ?, ?, ?, ?, '[]')"));
     query.addBindValue(id);
     query.addBindValue(lang);
+    query.addBindValue(kind);
     query.addBindValue(setId);
     query.addBindValue(jsonText(objectFrom(payload)));
     if (!query.exec()) {
@@ -570,6 +592,109 @@ bool StudyStore::seedKorean()
     return false;
 }
 
+bool StudyStore::ensureKoreanVocab()
+{
+    return seedKoreanVocab();
+}
+
+bool StudyStore::seedKoreanVocab()
+{
+    QFile file(QStringLiteral(":/study/seed_ko_vocab.json"));
+    if (!file.open(QIODevice::ReadOnly)) {
+        m_error = QStringLiteral("韩语词汇种子文件没有读到");
+        return false;
+    }
+    const QJsonObject seed = QJsonDocument::fromJson(file.readAll()).object();
+    const QJsonArray items = seed.value(QStringLiteral("items")).toArray();
+    if (items.isEmpty()) {
+        m_error = QStringLiteral("韩语词汇种子文件是空的");
+        return false;
+    }
+
+    const QString lang = seed.value(QStringLiteral("lang")).toString();
+    const QString setId = seed.value(QStringLiteral("setId")).toString();
+    if (!m_db.transaction())
+        return false;
+
+    int position = 0;
+    for (const QJsonValue &value : items) {
+        const QJsonObject word = value.toObject();
+        ++position;
+        const QString slug = word.value(QStringLiteral("slug")).toString();
+        const QString id = lang + QStringLiteral(":vocab:") + slug;
+        const QString glyph = word.value(QStringLiteral("word")).toString();
+        const QString gloss = word.value(QStringLiteral("gloss")).toString();
+        const QString group = word.value(QStringLiteral("group")).toString();
+        const QJsonArray likes = relatedIds(lang, word);
+
+        QSqlQuery existing(m_db);
+        existing.prepare(QStringLiteral("SELECT payload FROM items WHERE id = ?"));
+        existing.addBindValue(id);
+        if (!existing.exec()) {
+            m_error = existing.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (existing.next()) {
+            QJsonObject payload = QJsonDocument::fromJson(existing.value(0).toString().toUtf8()).object();
+            bool changed = false;
+            if (payload.value(QStringLiteral("group")).toString().isEmpty() && !group.isEmpty()) {
+                payload.insert(QStringLiteral("group"), group);
+                changed = true;
+            }
+            if (payload.value(QStringLiteral("lookalikes")).toArray().isEmpty() && !likes.isEmpty()) {
+                payload.insert(QStringLiteral("lookalikes"), likes);
+                changed = true;
+            }
+            if (!changed)
+                continue;
+            QSqlQuery update(m_db);
+            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+            update.addBindValue(jsonText(payload));
+            update.addBindValue(id);
+            if (!update.exec()) {
+                m_error = update.lastError().text();
+                m_db.rollback();
+                return false;
+            }
+            continue;
+        }
+
+        const QJsonObject payload{
+            {QStringLiteral("glyph"), glyph},
+            {QStringLiteral("glyphAlt"), QString()},
+            {QStringLiteral("reading"), glyph},
+            {QStringLiteral("audio"), QString()},
+            {QStringLiteral("pos"), word.value(QStringLiteral("pos")).toString()},
+            {QStringLiteral("gloss"), gloss},
+            {QStringLiteral("example"), word.value(QStringLiteral("example")).toString()},
+            {QStringLiteral("exampleGloss"), word.value(QStringLiteral("exampleGloss")).toString()},
+            {QStringLiteral("note"), word.value(QStringLiteral("note")).toString()},
+            {QStringLiteral("group"), group},
+            {QStringLiteral("position"), position},
+            {QStringLiteral("total"), items.size()},
+            {QStringLiteral("mnemonic"), QString()},
+            {QStringLiteral("lookalikes"), likes},
+        };
+        if (!insertItem(id, lang, setId, payload.toVariantMap(), QStringLiteral("vocab"))) {
+            m_db.rollback();
+            return false;
+        }
+        if (!insertFace(id, QStringLiteral("word-to-gloss"), promptText(glyph), answerText(gloss, {gloss}))
+            || !insertFace(id, QStringLiteral("gloss-to-word"), promptText(gloss), answerText(glyph, {glyph}))) {
+            m_db.rollback();
+            return false;
+        }
+    }
+
+    if (m_db.commit())
+        return true;
+    m_db.rollback();
+    if (m_error.isEmpty())
+        m_error = QStringLiteral("韩语词汇没有写入");
+    return false;
+}
+
 QVariantMap StudyStore::layout(const QString &layoutId) const
 {
     QVariantMap result;
@@ -666,6 +791,7 @@ QVariantMap StudyStore::item(const QString &itemId) const
             {QStringLiteral("id"), likeValue.toString()},
             {QStringLiteral("glyph"), likePayload.value(QStringLiteral("glyph")).toString()},
             {QStringLiteral("glyphAlt"), likePayload.value(QStringLiteral("glyphAlt")).toString()},
+            {QStringLiteral("gloss"), likePayload.value(QStringLiteral("gloss")).toString()},
         });
     }
 
@@ -693,6 +819,12 @@ QVariantMap StudyStore::item(const QString &itemId) const
     if (latest.exec() && latest.next())
         lastResult = latest.value(0).toString();
 
+    result.insert(QStringLiteral("group"), payload.value(QStringLiteral("group")).toString());
+    result.insert(QStringLiteral("pos"), payload.value(QStringLiteral("pos")).toString());
+    result.insert(QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString());
+    result.insert(QStringLiteral("example"), payload.value(QStringLiteral("example")).toString());
+    result.insert(QStringLiteral("exampleGloss"), payload.value(QStringLiteral("exampleGloss")).toString());
+    result.insert(QStringLiteral("note"), payload.value(QStringLiteral("note")).toString());
     result.insert(QStringLiteral("mnemonic"), payload.value(QStringLiteral("mnemonic")).toString());
     result.insert(QStringLiteral("lookalikes"), lookalikes);
     result.insert(QStringLiteral("status"), query.value(4).toString().isEmpty() ? QStringLiteral("unlearned") : query.value(4).toString());
@@ -701,9 +833,55 @@ QVariantMap StudyStore::item(const QString &itemId) const
     return result;
 }
 
+QVariantList StudyStore::items(const QString &setId) const
+{
+    QVariantList result;
+    if (!m_db.isOpen() || setId.isEmpty())
+        return result;
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT i.id, i.payload, m.status FROM items i "
+        "LEFT JOIN memory m ON m.item_id = i.id WHERE i.set_id = ?"));
+    query.addBindValue(setId);
+    if (!query.exec())
+        return result;
+
+    struct Row {
+        int position;
+        QVariantMap item;
+    };
+    QVector<Row> rows;
+    while (query.next()) {
+        const QJsonObject payload = QJsonDocument::fromJson(query.value(1).toString().toUtf8()).object();
+        const QString status = query.value(2).toString();
+        rows.append({payload.value(QStringLiteral("position")).toInt(), QVariantMap{
+            {QStringLiteral("id"), query.value(0).toString()},
+            {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
+            {QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString()},
+            {QStringLiteral("pos"), payload.value(QStringLiteral("pos")).toString()},
+            {QStringLiteral("group"), payload.value(QStringLiteral("group")).toString()},
+            {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
+        }});
+    }
+    std::sort(rows.begin(), rows.end(), [](const Row &left, const Row &right) {
+        return left.position < right.position;
+    });
+    for (const Row &row : rows)
+        result.append(row.item);
+    return result;
+}
+
 void StudyStore::setMnemonic(const QString &itemId, const QString &text)
 {
-    if (!m_db.isOpen() || itemId.isEmpty())
+    QVariantMap fields;
+    fields.insert(QStringLiteral("mnemonic"), text);
+    setFields(itemId, fields);
+}
+
+void StudyStore::setFields(const QString &itemId, const QVariantMap &fields)
+{
+    if (!m_db.isOpen() || itemId.isEmpty() || fields.isEmpty())
         return;
 
     QSqlQuery query(m_db);
@@ -713,9 +891,18 @@ void StudyStore::setMnemonic(const QString &itemId, const QString &text)
         return;
 
     QJsonObject payload = QJsonDocument::fromJson(query.value(0).toString().toUtf8()).object();
-    if (payload.value(QStringLiteral("mnemonic")).toString() == text)
+    bool edited = false;
+    for (auto it = fields.cbegin(); it != fields.cend(); ++it) {
+        if (!kEditableFields.contains(it.key()))
+            continue;
+        const QString text = it.value().toString();
+        if (payload.value(it.key()).toString() == text)
+            continue;
+        payload.insert(it.key(), text);
+        edited = true;
+    }
+    if (!edited)
         return;
-    payload.insert(QStringLiteral("mnemonic"), text);
 
     QSqlQuery update(m_db);
     update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));

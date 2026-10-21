@@ -53,6 +53,7 @@ qt_add_qml_module(appKJ_GO
         qml/modules/gojuon/KanaOverviewPage.qml
         qml/modules/gojuon/KanaDetailPage.qml
         qml/modules/gojuon/FlashcardPage.qml
+        qml/modules/gojuon/VocabPage.qml
         qml/modules/gojuon/WeakQueuePage.qml
     RESOURCES
         qml/theme/qmldir
@@ -85,7 +86,9 @@ qt_add_resources(appKJ_GO "kana_audio"
 qt_add_resources(appKJ_GO "study_seed"
     PREFIX "/study"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/data"
-    FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ja_seion.json"
+    FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ja_seion.json"
+        "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ko_vocab.json"
 )
 
 target_link_libraries(appKJ_GO

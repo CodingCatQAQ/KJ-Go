@@ -1,0 +1,594 @@
+{
+  "setId": "ko-vocab",
+  "lang": "ko",
+  "items": [
+    {
+      "slug": "rather",
+      "word": "오히려",
+      "pos": "副词",
+      "gloss": "反而",
+      "example": "도와주려다 오히려 방해만 됐어.",
+      "exampleGloss": "想帮忙，反而净添乱。",
+      "note": "结果和原来的打算相反。口语里比 반대로 更顺。",
+      "group": "语气衔接",
+      "related": [
+        "sooner"
+      ]
+    },
+    {
+      "slug": "anyway",
+      "word": "어차피",
+      "pos": "副词",
+      "gloss": "反正",
+      "example": "어차피 늦었으니 천천히 가자.",
+      "exampleGloss": "反正已经晚了，慢慢走吧。",
+      "note": "用来收住纠结：再争，结果也不会变。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "somehow",
+      "word": "아무래도",
+      "pos": "副词",
+      "gloss": "怎么想都",
+      "example": "아무래도 오늘은 쉬는 게 낫겠어.",
+      "exampleGloss": "怎么想都觉得今天还是休息好。",
+      "note": "委婉地下判断，比 분명히 留有余地。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "at-least",
+      "word": "그나마",
+      "pos": "副词",
+      "gloss": "好歹、还算",
+      "example": "비는 오는데 그나마 바람은 없네.",
+      "exampleGloss": "虽然在下雨，好歹没刮风。",
+      "note": "情况不好时，指出相对还行的那一点。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "insist",
+      "word": "굳이",
+      "pos": "副词",
+      "gloss": "非要、特意",
+      "example": "피곤하면 굳이 안 와도 돼.",
+      "exampleGloss": "累的话，不必特意过来。",
+      "note": "常用来劝人别多此一举。",
+      "group": "语气衔接",
+      "related": [
+        "vainly"
+      ]
+    },
+    {
+      "slug": "vainly",
+      "word": "괜히",
+      "pos": "副词",
+      "gloss": "白白地",
+      "example": "괜히 말했다가 분위기만 이상해졌어.",
+      "exampleGloss": "多嘴了一句，气氛反而变怪了。",
+      "note": "事后觉得那一步是多余的，还招来不好的结果。",
+      "group": "语气衔接",
+      "related": [
+        "insist"
+      ]
+    },
+    {
+      "slug": "face-to-face",
+      "word": "막상",
+      "pos": "副词",
+      "gloss": "真到了跟前",
+      "example": "막상 떠나려니 아쉽네.",
+      "exampleGloss": "真要走了，又舍不得。",
+      "note": "计划和真正面对那一刻之间的落差。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "the-very",
+      "word": "정작",
+      "pos": "副词",
+      "gloss": "实际上、关键时候",
+      "example": "걱정만 하다가 정작 할 말은 못 했어.",
+      "exampleGloss": "光顾着担心，该说的话反倒没说。",
+      "note": "把话从枝节拉回真正要紧的事。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "sooner",
+      "word": "차라리",
+      "pos": "副词",
+      "gloss": "倒不如",
+      "example": "이 정도면 차라리 새로 사는 게 낫겠다.",
+      "exampleGloss": "这样的话，倒不如买个新的。",
+      "note": "两个都不理想时，选一个更痛快的。",
+      "group": "语气衔接",
+      "related": [
+        "rather"
+      ]
+    },
+    {
+      "slug": "of-all",
+      "word": "하필",
+      "pos": "副词",
+      "gloss": "偏偏",
+      "example": "하필 오늘 비가 오네.",
+      "exampleGloss": "偏偏今天下雨。",
+      "note": "对不合时宜的巧合，无奈或埋怨。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "no-way",
+      "word": "설마",
+      "pos": "副词",
+      "gloss": "难道、不至于",
+      "example": "설마 그걸 진짜 믿은 거야?",
+      "exampleGloss": "难道你真信了？",
+      "note": "觉得不太可能，心里又有一点没底。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "as-expected",
+      "word": "역시",
+      "pos": "副词",
+      "gloss": "果然；还是",
+      "example": "역시 직접 해 보니 다르네.",
+      "exampleGloss": "果然自己做了才不一样。",
+      "note": "可以是果然如此，也可以是比较之后还是这个好。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "in-the-end",
+      "word": "결국",
+      "pos": "副词",
+      "gloss": "到头来",
+      "example": "결국 우리가 마무리하게 됐어.",
+      "exampleGloss": "到头来还是我们来收尾。",
+      "note": "经过一段过程，结果还是落在这里。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "only-that",
+      "word": "다만",
+      "pos": "副词",
+      "gloss": "只是",
+      "example": "가고 싶어. 다만 오늘은 좀 힘들어.",
+      "exampleGloss": "我想去。只是今天有点撑不住。",
+      "note": "先同意，再轻轻补一个保留。比 하지만 软。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "besides",
+      "word": "게다가",
+      "pos": "副词",
+      "gloss": "再加上",
+      "example": "늦었고, 게다가 비까지 와.",
+      "exampleGloss": "已经晚了，而且还下起雨来。",
+      "note": "往同一个方向再叠一条，通常是加重。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "so-to-speak",
+      "word": "말하자면",
+      "pos": "副词",
+      "gloss": "这么说吧",
+      "example": "말하자면 지금이 마지막 기회야.",
+      "exampleGloss": "这么说吧，现在是最后的机会。",
+      "note": "给前面的话一个更贴切的说法。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "regrettable",
+      "word": "아쉽다",
+      "pos": "形容词",
+      "gloss": "可惜、差一口气",
+      "example": "한 문제 차이로 떨어져서 아쉬워.",
+      "exampleGloss": "就差一题，真可惜。",
+      "note": "不是大悲伤，是差一点就成了的遗憾。",
+      "group": "心情差别",
+      "related": [
+        "let-down",
+        "wistful"
+      ]
+    },
+    {
+      "slug": "let-down",
+      "word": "섭섭하다",
+      "pos": "形容词",
+      "gloss": "失落、过意不去",
+      "example": "연락도 없이 가서 좀 섭섭해.",
+      "exampleGloss": "招呼都不打就走了，有点失落。",
+      "note": "多半对着某个人的做法，期待落了空。",
+      "group": "心情差别",
+      "related": [
+        "regrettable",
+        "wistful"
+      ]
+    },
+    {
+      "slug": "wistful",
+      "word": "서운하다",
+      "pos": "形容词",
+      "gloss": "心里不是滋味",
+      "example": "생일인데 혼자라서 서운했어.",
+      "exampleGloss": "生日却只有自己，心里空落落的。",
+      "note": "比 섭섭하다 更偏心里空。섭섭하다 更常怪到人身上。",
+      "group": "心情差别",
+      "related": [
+        "regrettable",
+        "let-down"
+      ]
+    },
+    {
+      "slug": "proud",
+      "word": "뿌듯하다",
+      "pos": "形容词",
+      "gloss": "欣慰",
+      "example": "네가 해낸 걸 보니 뿌듯하다.",
+      "exampleGloss": "看到你做成了，我很欣慰。",
+      "note": "付出之后胸口发暖的满足，不只是 기쁘다。",
+      "group": "心情差别"
+    },
+    {
+      "slug": "uneasy",
+      "word": "찜찜하다",
+      "pos": "形容词",
+      "gloss": "心里不踏实",
+      "example": "이렇게 끝내자니 찜찜해.",
+      "exampleGloss": "就这么收场，心里不踏实。",
+      "note": "说不清哪里不对，但放不下。",
+      "group": "心情差别"
+    },
+    {
+      "slug": "burdensome",
+      "word": "부담스럽다",
+      "pos": "形容词",
+      "gloss": "有负担、过意不去",
+      "example": "매번 신세 지려니 부담스러워.",
+      "exampleGloss": "每次都承你的情，怪过意不去。",
+      "note": "可以是压力，也可以是觉得给对方添了麻烦。",
+      "group": "心情差别"
+    },
+    {
+      "slug": "awkward",
+      "word": "민망하다",
+      "pos": "形容词",
+      "gloss": "尴尬、难为情",
+      "example": "칭찬을 들으니 민망하네.",
+      "exampleGloss": "被这么夸，怪难为情的。",
+      "note": "当下不知道把眼神放哪。比 부끄럽다 更偏当场的尴尬。",
+      "group": "心情差别",
+      "related": [
+        "ashamed"
+      ]
+    },
+    {
+      "slug": "ashamed",
+      "word": "창피하다",
+      "pos": "形容词",
+      "gloss": "丢脸",
+      "example": "사람들 앞에서 틀려서 창피했어.",
+      "exampleGloss": "当着大家的面说错了，真丢脸。",
+      "note": "有旁观者时的羞耻，比 부끄럽다 更对外。",
+      "group": "心情差别",
+      "related": [
+        "awkward"
+      ]
+    },
+    {
+      "slug": "stifling",
+      "word": "답답하다",
+      "pos": "形容词",
+      "gloss": "憋闷、干着急",
+      "example": "말은 안 하고 표정만 보니 답답해.",
+      "exampleGloss": "话不说，只看脸色，真让人着急。",
+      "note": "可以是胸口闷，也可以是对人或局面干着急。",
+      "group": "心情差别",
+      "related": [
+        "upset",
+        "unfair"
+      ]
+    },
+    {
+      "slug": "upset",
+      "word": "속상하다",
+      "pos": "形容词",
+      "gloss": "难受、窝心",
+      "example": "그 말 듣고 밤새 속상했어.",
+      "exampleGloss": "听了那句话，难受了一整夜。",
+      "note": "委屈和难过搅在一起，常常是被人伤到之后。",
+      "group": "心情差别",
+      "related": [
+        "stifling",
+        "unfair"
+      ]
+    },
+    {
+      "slug": "unfair",
+      "word": "억울하다",
+      "pos": "形容词",
+      "gloss": "委屈、不甘",
+      "example": "내가 한 일도 아닌데 억울해.",
+      "exampleGloss": "又不是我做的，真委屈。",
+      "note": "觉得冤枉，或者不甘心结果不公平。",
+      "group": "心情差别",
+      "related": [
+        "stifling",
+        "upset"
+      ]
+    },
+    {
+      "slug": "hesitate",
+      "word": "망설이다",
+      "pos": "动词",
+      "gloss": "犹豫",
+      "example": "말할까 말까 한참 망설였어.",
+      "exampleGloss": "说还是不说，犹豫了好一阵。",
+      "note": "人还停在决定之前。名词是 망설임。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "handle",
+      "word": "감당하다",
+      "pos": "动词",
+      "gloss": "承受、应付",
+      "example": "이 일은 혼자 감당하기 어려워.",
+      "exampleGloss": "这件事一个人扛不住。",
+      "note": "强调这件事的重量，在不在自己扛得住的范围里。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "consider",
+      "word": "헤아리다",
+      "pos": "动词",
+      "gloss": "体察、掂量",
+      "example": "상대 입장도 한번 헤아려 봐.",
+      "exampleGloss": "也体察一下对方的处境。",
+      "note": "不是随便想想，是把对方的心情放在心里量一量。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "care",
+      "word": "배려하다",
+      "pos": "动词",
+      "gloss": "为对方着想",
+      "example": "먼저 자리를 비켜 주는 게 배려야.",
+      "exampleGloss": "先把位子让出来，这才叫为对方着想。",
+      "note": "要落到行动上，给对方留余地。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "look-after",
+      "word": "챙기다",
+      "pos": "动词",
+      "gloss": "照料、记得带",
+      "example": "밥은 챙겼어? 우산도 챙겨.",
+      "exampleGloss": "吃饭了吗？伞也带上。",
+      "note": "管饭、带东西、把人安排妥当，口语里都能说。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "put-off",
+      "word": "미루다",
+      "pos": "动词",
+      "gloss": "往后拖",
+      "example": "할 일을 내일로 미루지 마.",
+      "exampleGloss": "别把该做的事推到明天。",
+      "note": "比 연기하다 更口语，常带一点不该拖还在拖。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "hold-on",
+      "word": "버티다",
+      "pos": "动词",
+      "gloss": "硬撑",
+      "example": "조금만 더 버텨 보자.",
+      "exampleGloss": "再撑一小会儿。",
+      "note": "可以是坚持住，也可以是固执着不让步。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "confide",
+      "word": "털어놓다",
+      "pos": "动词",
+      "gloss": "把心里话倒出来",
+      "example": "요즘 고민을 친구한테 털어놓았어.",
+      "exampleGloss": "最近把烦心事跟朋友倒了出来。",
+      "note": "比 말하다 更指卸下压在心里的话。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "seep",
+      "word": "스며들다",
+      "pos": "动词",
+      "gloss": "渗进去",
+      "example": "그 노랫말이 마음에 스며들어.",
+      "exampleGloss": "那句歌词渗进心里了。",
+      "note": "液体渗入，也常说情绪、习惯慢慢进入生活。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "understandable",
+      "word": "그럴 만하다",
+      "pos": "表达",
+      "gloss": "也难怪",
+      "example": "그렇게 바빴으면 피곤할 만해.",
+      "exampleGloss": "忙成那样，也难怪累。",
+      "note": "承认对方的反应是合理的，接话时很自然。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "no-choice",
+      "word": "어쩔 수 없다",
+      "pos": "表达",
+      "gloss": "也没办法",
+      "example": "이미 지난 일이니 어쩔 수 없지.",
+      "exampleGloss": "已经过去了，也只能这样了。",
+      "note": "接受改变不了的事。可以是无奈，也可以是放下。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "impossible",
+      "word": "그럴 리 없다",
+      "pos": "表达",
+      "gloss": "不可能",
+      "example": "네가 일부러 그럴 리 없어.",
+      "exampleGloss": "你不可能是故意的。",
+      "note": "比 아닐 거야 更坚决，否定那种可能。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "resolve",
+      "word": "마음먹다",
+      "pos": "动词",
+      "gloss": "拿定主意",
+      "example": "올해는 꼭 끝내겠다고 마음먹었어.",
+      "exampleGloss": "我拿定主意，今年一定做完。",
+      "note": "比 결심하다 更口语，强调心里已经定了。",
+      "group": "口语动词"
+    },
+    {
+      "slug": "read-the-room",
+      "word": "눈치 보다",
+      "pos": "表达",
+      "gloss": "看脸色",
+      "example": "계속 눈치 보지 말고 그냥 말해.",
+      "exampleGloss": "别一直看脸色，直接说。",
+      "note": "一边看别人的反应，一边不敢照自己的意思做。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "deflate",
+      "word": "김빠지다",
+      "pos": "动词",
+      "gloss": "泄气",
+      "example": "그 말을 듣자 김이 팍 빠졌어.",
+      "exampleGloss": "一听那句话，劲一下就泄了。",
+      "note": "本来鼓着的劲掉了。扫兴、露馅更接近 김새다。",
+      "group": "固定说法",
+      "related": [
+        "spoil"
+      ]
+    },
+    {
+      "slug": "spoil",
+      "word": "김새다",
+      "pos": "动词",
+      "gloss": "扫兴",
+      "example": "비밀인 줄 알았더니 이미 알려져서 김샜어.",
+      "exampleGloss": "以为还是秘密，结果早就传开了，真扫兴。",
+      "note": "期待中的新鲜感或惊喜提前漏掉。",
+      "group": "固定说法",
+      "related": [
+        "deflate"
+      ]
+    },
+    {
+      "slug": "count-days",
+      "word": "손꼽아 기다리다",
+      "pos": "表达",
+      "gloss": "翘首以盼",
+      "example": "이 날을 손꼽아 기다렸어.",
+      "exampleGloss": "这一天我盼了很久。",
+      "note": "比 기다리다 多一层早就在盼的感情。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "step-up",
+      "word": "발 벗고 나서다",
+      "pos": "表达",
+      "gloss": "亲自上阵",
+      "example": "친구가 곤란하다니 발 벗고 나섰어.",
+      "exampleGloss": "听说朋友有难，我就亲自出面了。",
+      "note": "不是随便帮一下，是认真介入。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "picky",
+      "word": "입이 짧다",
+      "pos": "表达",
+      "gloss": "嘴刁",
+      "example": "우리 애는 입이 짧아서 반찬을 가려.",
+      "exampleGloss": "我家孩子嘴刁，挑菜吃。",
+      "note": "字面是嘴短，实际是挑食，或胃口不大。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "generous",
+      "word": "손이 크다",
+      "pos": "表达",
+      "gloss": "出手大方",
+      "example": "어머니는 언제나 손이 크셔.",
+      "exampleGloss": "妈妈做事总是分量给得很足。",
+      "note": "夸人招待大方、给得多，不是说手的大小。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "narrow",
+      "word": "속이 좁다",
+      "pos": "表达",
+      "gloss": "气量小",
+      "example": "그 정도로 속이 좁으면 곤란하지.",
+      "exampleGloss": "这点事都放不下，气量也太小了。",
+      "note": "和 마음이 좁다 接近，更口语，略带批评。",
+      "group": "固定说法"
+    },
+    {
+      "slug": "quietly",
+      "word": "은근히",
+      "pos": "副词",
+      "gloss": "暗自",
+      "example": "은근히 기대하고 있었어.",
+      "exampleGloss": "其实心里一直有点期待。",
+      "note": "不摆在明面上，但确实有那么一点。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "glance",
+      "word": "슬쩍",
+      "pos": "副词",
+      "gloss": "悄悄地",
+      "example": "내 쪽을 슬쩍 봤어.",
+      "exampleGloss": "悄悄瞥了我一眼。",
+      "note": "动作又轻又快，像不想被抓住。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "suddenly",
+      "word": "문득",
+      "pos": "副词",
+      "gloss": "忽然",
+      "example": "문득 네 생각이 났어.",
+      "exampleGloss": "忽然想起你。",
+      "note": "没有前兆地从心里冒出来，比 갑자기 更内心。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "cant-bear",
+      "word": "차마",
+      "pos": "副词",
+      "gloss": "不忍、说不出口",
+      "example": "차마 그 말은 못 하겠어.",
+      "exampleGloss": "那句话我实在说不出口。",
+      "note": "几乎总是否定着说：차마 못 하다。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "in-ones-way",
+      "word": "나름대로",
+      "pos": "副词",
+      "gloss": "按自己的方式",
+      "example": "나름대로 노력한 거야.",
+      "exampleGloss": "他也按自己的方式努力过了。",
+      "note": "承认不是标准做法，但有他的道理。",
+      "group": "语气衔接"
+    },
+    {
+      "slug": "anytime",
+      "word": "얼마든지",
+      "pos": "副词",
+      "gloss": "尽管、完全可以",
+      "example": "필요하면 얼마든지 말해.",
+      "exampleGloss": "需要的话尽管说。",
+      "note": "余地很大，用来鼓励对方开口或行动。",
+      "group": "语气衔接"
+    }
+  ]
+}

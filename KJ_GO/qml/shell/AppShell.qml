@@ -15,7 +15,10 @@ Item {
     property string flashQueue: "today"
     property string flashFront: "hira"
 
-    readonly property string activeSet: language === "ko" ? "ko-syllable" : "ja-seion"
+    readonly property string studySet: language === "ko" ? "ko-syllable" : "ja-seion"
+    readonly property string vocabSet: language === "ko" ? "ko-vocab" : "ja-vocab"
+    readonly property string flashSet: language === "ko" ? "ko-vocab" : "ja-seion"
+    readonly property string activeSet: currentModule === 1 ? flashSet : (studyView === "vocab" ? vocabSet : studySet)
     readonly property var counts: {
         var rev = studyStore.revision
         return studyStore.counts(root.activeSet)
@@ -64,7 +67,13 @@ Item {
         anchors.right: parent.right
         currentIndex: root.currentModule
         language: root.language
-        onToggleLanguage: root.language = root.language === "ja" ? "ko" : "ja"
+        onToggleLanguage: {
+            root.language = root.language === "ja" ? "ko" : "ja"
+            if (root.language === "ko" && (root.flashFront === "hira" || root.flashFront === "kata"))
+                root.flashFront = "word"
+            else if (root.language === "ja" && (root.flashFront === "word" || root.flashFront === "gloss"))
+                root.flashFront = "hira"
+        }
         onNavigate: {
             root.currentModule = index
             if (index === 0)
@@ -99,9 +108,15 @@ Item {
                 onBack: root.showStudy("overview")
                 onStep: root.selectedRomaji = KanaCatalog.step(root.selectedRomaji, direction)
             }
+            VocabPage {
+                anchors.fill: parent
+                visible: root.studyView === "vocab"
+                language: root.language
+                setId: root.vocabSet
+            }
         }
         FlashcardPage {
-            setId: root.activeSet
+            setId: root.flashSet
             queueMode: root.flashQueue
             frontScript: root.flashFront
             onExit: root.showStudy("overview")

@@ -16,6 +16,7 @@ Item {
     property int correctCount: 0
     property int wrongCount: 0
     property bool cardsReady: false
+    property bool vocabDeck: false
     property var frontPick: ({})
 
     readonly property bool finished: queue.length === 0 || index >= queue.length
@@ -58,9 +59,22 @@ Item {
         var pick = {}
         for (var i = 0; i < ids.length; ++i) {
             var card = studyStore.item(ids[i])
-            pick[ids[i]] = (card && card.glyphAlt && Math.random() < 0.5) ? "kata" : "hira"
+            if (card && card.kind === "vocab")
+                pick[ids[i]] = Math.random() < 0.5 ? "gloss" : "word"
+            else
+                pick[ids[i]] = (card && card.glyphAlt && Math.random() < 0.5) ? "kata" : "hira"
         }
         frontPick = pick
+    }
+
+    function showingGloss(entry) {
+        if (!entry || entry.kind !== "vocab")
+            return false
+        if (frontScript === "gloss")
+            return true
+        if (frontScript === "mix")
+            return frontPick[entry.id] === "gloss"
+        return false
     }
 
     function showingKata(entry) {
@@ -76,14 +90,54 @@ Item {
     function frontGlyph(entry) {
         if (!entry)
             return ""
+        if (entry.kind === "vocab")
+            return showingGloss(entry) ? entry.gloss : entry.glyph
         return showingKata(entry) ? entry.glyphAlt : entry.glyph
     }
 
     function frontCaption(entry) {
         if (!entry)
             return "FRONT"
+        if (entry.kind === "vocab") {
+            if (showingGloss(entry))
+                return "释义 · FRONT"
+            return (entry.pos ? entry.pos : "单词") + " · FRONT"
+        }
         var label = showingKata(entry) ? entry.pairRightLabel : entry.pairLeftLabel
         return (label ? label : "") + " · FRONT"
+    }
+
+    function frontHint(entry) {
+        if (entry && entry.kind === "vocab")
+            return showingGloss(entry) ? "韩语怎么说？" : "意思和用法是？"
+        return "它读作什么？"
+    }
+
+    function heroSize(text) {
+        if (!vocabDeck)
+            return Theme.kanaHero
+        var n = text ? text.length : 1
+        if (n <= 2)
+            return 108
+        if (n <= 4)
+            return 72
+        if (n <= 6)
+            return 48
+        if (n <= 10)
+            return 36
+        return 28
+    }
+
+    function vocabAnswer(entry) {
+        if (!entry)
+            return ""
+        return showingGloss(entry) ? entry.glyph : entry.gloss
+    }
+
+    function promptKind() {
+        if (!entry || entry.kind !== "vocab")
+            return "glyph-to-reading"
+        return showingGloss(entry) ? "gloss-to-word" : "word-to-gloss"
     }
 
     function queueTitle() {
@@ -96,6 +150,8 @@ Item {
 
     function reload() {
         var ids = loadQueue()
+        var first = ids.length > 0 ? studyStore.item(ids[0]) : null
+        vocabDeck = first ? first.kind === "vocab" : setId.indexOf("vocab") !== -1
         buildFrontPick(ids)
         queue = ids
         index = 0
@@ -110,7 +166,7 @@ Item {
     function choose(correct) {
         if (!flipped || finished || !currentId)
             return
-        studyStore.rate(currentId, correct, "flashcard", "glyph-to-reading")
+        studyStore.rate(currentId, correct, "flashcard", promptKind())
         if (correct)
             correctCount += 1
         else
@@ -252,8 +308,8 @@ Item {
 
             Item {
                 id: scene
-                width: 400
-                height: 440
+                width: root.vocabDeck ? 480 : 400
+                height: root.vocabDeck ? 520 : 440
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 Item {
@@ -279,8 +335,19 @@ Item {
                         border.color: Theme.border
                         MouseArea { anchors.fill: parent; onClicked: root.flipped = true }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: root.frontCaption(root.entry); color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
-                        Text { anchors.centerIn: parent; text: root.frontGlyph(root.entry); color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: Theme.kanaHero; font.bold: true }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 28; text: "它读作什么？"; color: Theme.textMuted; font.pixelSize: 11; font.letterSpacing: 1.4; font.family: Theme.fontBody }
+                        Text {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 72
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            text: root.frontGlyph(root.entry)
+                            color: Theme.text
+                            font.family: root.vocabDeck && root.showingGloss(root.entry) ? Theme.fontBody : Theme.fontDisplay
+                            font.pixelSize: root.heroSize(text)
+                            font.bold: true
+                        }
+                        Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 28; text: root.frontHint(root.entry); color: Theme.textMuted; font.pixelSize: 11; font.letterSpacing: 1.4; font.family: Theme.fontBody }
                     }
 
                     Rectangle {
@@ -300,6 +367,7 @@ Item {
                         Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 2; color: Theme.primary }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 28; text: "答案 · BACK"; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 2.2; font.family: Theme.fontBody }
                         Column {
+                            visible: !root.vocabDeck
                             anchors.centerIn: parent
                             spacing: 20
                             Item {
@@ -403,7 +471,66 @@ Item {
                                 }
                             }
                         }
+                        Column {
+                            visible: root.vocabDeck
+                            width: parent.width - 64
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.verticalCenterOffset: 8
+                            spacing: 18
+                            Text {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.entry && root.entry.pos ? root.entry.pos : ""
+                                color: Theme.textMuted
+                                font.family: Theme.fontBody
+                                font.pixelSize: 11
+                                font.letterSpacing: 1.6
+                            }
+                            Text {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                                text: root.vocabAnswer(root.entry)
+                                color: Theme.text
+                                font.family: root.showingGloss(root.entry) ? Theme.fontDisplay : Theme.fontBody
+                                font.pixelSize: root.heroSize(text)
+                                font.bold: true
+                            }
+                            Column {
+                                width: parent.width
+                                spacing: 6
+                                Text {
+                                    width: parent.width
+                                    horizontalAlignment: Text.AlignHCenter
+                                    wrapMode: Text.WordWrap
+                                    text: root.entry ? root.entry.example : ""
+                                    color: Theme.text
+                                    font.family: Theme.fontBody
+                                    font.pixelSize: 16
+                                }
+                                Text {
+                                    width: parent.width
+                                    horizontalAlignment: Text.AlignHCenter
+                                    wrapMode: Text.WordWrap
+                                    text: root.entry ? root.entry.exampleGloss : ""
+                                    color: Theme.textMuted
+                                    font.family: Theme.fontBody
+                                    font.pixelSize: 13
+                                }
+                            }
+                            Text {
+                                width: parent.width
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                                text: root.entry ? root.entry.note : ""
+                                color: Theme.textMuted
+                                font.family: Theme.fontBody
+                                font.pixelSize: 12
+                            }
+                        }
                         Text {
+                            visible: !root.vocabDeck
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.bottom
                             anchors.bottomMargin: 24

@@ -2,4 +2,5 @@ singleton KanaCatalog 1.0 KanaCatalog.qml
 KanaOverviewPage 1.0 KanaOverviewPage.qml
 KanaDetailPage 1.0 KanaDetailPage.qml
 FlashcardPage 1.0 FlashcardPage.qml
+VocabPage 1.0 VocabPage.qml
 WeakQueuePage 1.0 WeakQueuePage.qml
