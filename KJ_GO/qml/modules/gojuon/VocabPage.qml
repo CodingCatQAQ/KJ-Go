@@ -8,33 +8,22 @@ Item {
     property string setId: "ko-vocab"
     property string language: "ko"
     property string statusFilter: "all"
-    property string groupFilter: "all"
     property string selectedId: ""
-    property string loadedId: ""
-    property bool loadingEditor: false
-    property bool ready: false
+    property string formId: ""
+    property string formPos: ""
+    property string posHintLabel: ""
+    property string formError: ""
+    property string deleteError: ""
 
     readonly property var catalog: {
         var rev = studyStore.revision
         return studyStore.items(root.setId)
-    }
-    readonly property var groupNames: {
-        var names = []
-        var rows = root.catalog
-        for (var i = 0; i < rows.length; ++i) {
-            var name = rows[i].group
-            if (name && names.indexOf(name) < 0)
-                names.push(name)
-        }
-        return names
     }
     readonly property var visibleRows: {
         var out = []
         var rows = root.catalog
         for (var i = 0; i < rows.length; ++i) {
             var row = rows[i]
-            if (root.groupFilter !== "all" && row.group !== root.groupFilter)
-                continue
             if (root.statusFilter !== "all" && row.status !== root.statusFilter)
                 continue
             out.push(row)
@@ -73,64 +62,144 @@ Item {
         return 24
     }
 
-    function commitEditor(id) {
-        if (!ready || loadingEditor || !id)
-            return
-        studyStore.setFields(id, {
-            gloss: glossEdit.text,
-            example: exampleEdit.text,
-            exampleGloss: exampleGlossEdit.text,
-            note: noteEdit.text,
-            mnemonic: mnemonicEdit.text
-        })
+    function neighborId(id) {
+        var rows = root.visibleRows
+        for (var i = 0; i < rows.length; ++i) {
+            if (rows[i].id !== id)
+                continue
+            if (i + 1 < rows.length)
+                return rows[i + 1].id
+            if (i > 0)
+                return rows[i - 1].id
+            return ""
+        }
+        return ""
     }
 
-    function loadEditor() {
-        if (!ready)
+    function fillForm(card) {
+        formError = ""
+        posHintLabel = ""
+        wordInput.text = card && card.glyph ? card.glyph : ""
+        var written = card && card.pos ? card.pos : ""
+        formPos = PosCatalog.find(written) ? written : "其他"
+        glossInput.text = card && card.gloss ? card.gloss : ""
+        exampleInput.text = card && card.example ? card.example : ""
+        mnemonicInput.text = card && card.mnemonic ? card.mnemonic : ""
+    }
+
+    function pickPos(label) {
+        formPos = label
+    }
+
+    function shownPos(written) {
+        return PosCatalog.find(written) ? written : "其他"
+    }
+
+    function posHintText(label) {
+        var kind = PosCatalog.find(label)
+        return kind ? kind.note : ""
+    }
+
+    function openAdd() {
+        formId = ""
+        fillForm(null)
+        editorPopup.open()
+    }
+
+    function openEdit() {
+        if (!entry || !entry.id)
             return
-        loadingEditor = true
-        var card = root.selectedId ? studyStore.item(root.selectedId) : null
-        glossEdit.text = card && card.gloss ? card.gloss : ""
-        exampleEdit.text = card && card.example ? card.example : ""
-        exampleGlossEdit.text = card && card.exampleGloss ? card.exampleGloss : ""
-        noteEdit.text = card && card.note ? card.note : ""
-        mnemonicEdit.text = card && card.mnemonic ? card.mnemonic : ""
-        loadedId = root.selectedId
-        loadingEditor = false
+        formId = entry.id
+        fillForm(entry)
+        editorPopup.open()
+    }
+
+    function formFields() {
+        return {
+            glyph: wordInput.text,
+            pos: root.shownPos(formPos),
+            gloss: glossInput.text,
+            example: exampleInput.text,
+            mnemonic: mnemonicInput.text
+        }
+    }
+
+    function saveForm() {
+        if (!wordInput.text.trim()) {
+            formError = "先写下这个词"
+            wordInput.input.forceActiveFocus()
+            return
+        }
+        if (!glossInput.text.trim()) {
+            formError = "中文意思不能空着"
+            glossInput.input.forceActiveFocus()
+            return
+        }
+        var issue = studyStore.scriptIssue(language, wordInput.text)
+        if (issue) {
+            formError = issue
+            wordInput.input.forceActiveFocus()
+            return
+        }
+        if (formId) {
+            if (!studyStore.updateVocab(formId, formFields())) {
+                formError = "没有保存"
+                return
+            }
+            editorPopup.close()
+            return
+        }
+        var id = studyStore.addVocab(setId, language, formFields())
+        if (!id) {
+            formError = "没有写入词库"
+            return
+        }
+        statusFilter = "all"
+        selectedId = id
+        editorPopup.close()
+    }
+
+    function openDelete() {
+        if (!entry || !entry.id)
+            return
+        deleteError = ""
+        deletePopup.open()
+    }
+
+    function removeSelected() {
+        var id = selectedId
+        if (!id)
+            return
+        var next = neighborId(id)
+        if (!studyStore.removeVocab(id)) {
+            deleteError = "没有删掉"
+            return
+        }
+        deletePopup.close()
+        selectedId = next
     }
 
     function choose(id) {
-        if (id === selectedId)
-            return
-        if (loadedId)
-            commitEditor(loadedId)
-        loadedId = ""
-        selectedId = id
+        if (id !== selectedId)
+            selectedId = id
     }
 
-    onSelectedIdChanged: loadEditor()
     onSetIdChanged: {
         statusFilter = "all"
-        groupFilter = "all"
-        if (loadedId)
-            commitEditor(loadedId)
-        loadedId = ""
+        editorPopup.close()
+        deletePopup.close()
         var next = catalog.length > 0 ? catalog[0].id : ""
-        if (next === selectedId)
-            loadEditor()
-        else
-            selectedId = next
+        selectedId = next
     }
     onVisibleChanged: {
-        if (!visible && loadedId)
-            commitEditor(loadedId)
+        if (!visible) {
+            editorPopup.close()
+            deletePopup.close()
+        }
     }
     Component.onCompleted: {
-        ready = true
         if (!selectedId && catalog.length > 0)
             selectedId = catalog[0].id
-        else
-            loadEditor()
     }
 
     component ChoiceChip: Rectangle {
@@ -155,16 +224,75 @@ Item {
         TapHandler { onTapped: chip.picked() }
     }
 
-    component EditorBlock: Column {
-        id: block
-        property string label: ""
-        property alias text: area.text
-        property string placeholder: ""
-        property int boxHeight: 72
-        spacing: 6
-        width: parent.width
+    component PosChoice: Rectangle {
+        id: posChip
+        property string kindLabel: ""
+        property bool chosen: false
+        signal picked()
+        implicitWidth: posChipText.implicitWidth + 22
+        implicitHeight: 34
+        radius: Theme.radiusSm
+        color: chosen ? Theme.text : (posChipHover.hovered ? Theme.muted : "transparent")
+        border.width: chosen ? 0 : 1
+        border.color: Theme.line
         Text {
-            text: block.label
+            id: posChipText
+            anchors.centerIn: parent
+            text: posChip.kindLabel
+            color: posChip.chosen ? Theme.bg : Theme.text
+            font.family: Theme.fontBody
+            font.pixelSize: 14
+            font.bold: posChip.chosen
+        }
+        HoverHandler {
+            id: posChipHover
+            onHoveredChanged: {
+                if (hovered)
+                    root.posHintLabel = posChip.kindLabel
+                else if (root.posHintLabel === posChip.kindLabel)
+                    root.posHintLabel = ""
+            }
+        }
+        TapHandler { onTapped: posChip.picked() }
+    }
+
+    component QuietButton: Rectangle {
+        id: btn
+        property string label: ""
+        property bool filled: false
+        property bool danger: false
+        signal picked()
+        implicitWidth: btnLabel.implicitWidth + 28
+        implicitHeight: 36
+        radius: Theme.radiusSm
+        color: btn.filled ? Theme.text : (btn.danger && btnHover.hovered ? Theme.accent : (btnHover.hovered ? Theme.muted : "transparent"))
+        border.width: btn.filled ? 0 : 1
+        border.color: btn.danger ? Theme.accent : Theme.line
+        Text {
+            id: btnLabel
+            anchors.centerIn: parent
+            text: btn.label
+            color: btn.filled ? Theme.bg : (btn.danger ? (btnHover.hovered ? Theme.primaryFg : Theme.accent) : Theme.text)
+            font.family: Theme.fontBody
+            font.pixelSize: 14
+            font.bold: true
+        }
+        HoverHandler { id: btnHover }
+        TapHandler { onTapped: btn.picked() }
+    }
+
+    component FormLine: Column {
+        id: line
+        property string label: ""
+        property string placeholder: ""
+        property int boxHeight: 40
+        property string fontFamily: Theme.fontBody
+        property int fontSize: 15
+        property alias text: area.text
+        property alias input: area
+        spacing: 6
+        Text {
+            text: line.label
             color: Theme.textMuted
             font.family: Theme.fontBody
             font.pixelSize: 10
@@ -172,18 +300,19 @@ Item {
         }
         TextArea {
             id: area
-            width: parent.width
-            height: block.boxHeight
+            width: line.width
+            height: line.boxHeight
             topPadding: 8
             bottomPadding: 8
             leftPadding: 0
             rightPadding: 0
             wrapMode: TextArea.Wrap
-            placeholderText: block.placeholder
+            selectByMouse: true
+            placeholderText: line.placeholder
             color: Theme.text
             placeholderTextColor: Theme.textMuted
-            font.family: Theme.fontBody
-            font.pixelSize: 15
+            font.family: line.fontFamily
+            font.pixelSize: line.fontSize
             background: Item {
                 Rectangle {
                     anchors.left: parent.left
@@ -193,7 +322,29 @@ Item {
                     color: area.activeFocus ? Theme.text : Theme.border
                 }
             }
-            onEditingFinished: root.commitEditor(root.loadedId)
+        }
+    }
+
+    component DetailBlock: Column {
+        id: block
+        property string label: ""
+        property string value: ""
+        spacing: 6
+        width: parent.width
+        Text {
+            text: block.label
+            color: Theme.textMuted
+            font.family: Theme.fontBody
+            font.pixelSize: 10
+            font.letterSpacing: 1.8
+        }
+        Text {
+            width: parent.width
+            wrapMode: Text.WordWrap
+            text: block.value ? block.value : "还没写"
+            color: block.value ? Theme.text : Theme.textMuted
+            font.family: Theme.fontBody
+            font.pixelSize: 15
         }
     }
 
@@ -213,15 +364,7 @@ Item {
             ColumnLayout {
                 spacing: 8
                 Text {
-                    text: "VOCAB · 词汇"
-                    color: Theme.textMuted
-                    font.family: Theme.fontBody
-                    font.pixelSize: 11
-                    font.bold: true
-                    font.letterSpacing: 2.4
-                }
-                Text {
-                    text: "词汇"
+                    text: root.language === "ko" ? "단어" : "単語"
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: Theme.title
@@ -231,28 +374,14 @@ Item {
             Item { Layout.fillWidth: true }
             Row {
                 Layout.alignment: Qt.AlignBottom
-                spacing: 4
+                spacing: 8
                 visible: root.catalog.length > 0
+                QuietButton { label: "添加"; onPicked: root.openAdd() }
+                Item { width: 8; height: 1 }
                 ChoiceChip { label: "全部"; chosen: root.statusFilter === "all"; onPicked: root.statusFilter = "all" }
                 ChoiceChip { label: "已掌握"; ink: Theme.primary; chosen: root.statusFilter === "mastered"; onPicked: root.statusFilter = "mastered" }
                 ChoiceChip { label: "模糊"; ink: Theme.textMuted; chosen: root.statusFilter === "fuzzy"; onPicked: root.statusFilter = "fuzzy" }
                 ChoiceChip { label: "未掌握"; ink: Theme.accent; chosen: root.statusFilter === "unlearned"; onPicked: root.statusFilter = "unlearned" }
-            }
-        }
-
-        Flow {
-            Layout.fillWidth: true
-            spacing: 4
-            visible: root.groupNames.length > 0
-            ChoiceChip { label: "全部"; chosen: root.groupFilter === "all"; onPicked: root.groupFilter = "all" }
-            Repeater {
-                model: root.groupNames
-                delegate: ChoiceChip {
-                    required property string modelData
-                    label: modelData
-                    chosen: root.groupFilter === modelData
-                    onPicked: root.groupFilter = modelData
-                }
             }
         }
 
@@ -269,7 +398,7 @@ Item {
 
             Column {
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: 16
                 width: 420
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -283,10 +412,21 @@ Item {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
-                    text: "词写进词库之后，会显示在这里。释义、例句、用法和笔记都可以改，闪卡读的是同一份。"
+                    text: "遇到一个词，把它和中文意思一起记进来。笔记可以写下这个词的特殊之处。"
                     color: Theme.textMuted
                     font.family: Theme.fontBody
                     font.pixelSize: 14
+                }
+                Item {
+                    width: parent.width
+                    height: emptyAdd.implicitHeight
+                    QuietButton {
+                        id: emptyAdd
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        label: "添加"
+                        filled: true
+                        onPicked: root.openAdd()
+                    }
                 }
             }
         }
@@ -335,7 +475,7 @@ Item {
                         }
                         Text {
                             width: parent.width
-                            text: row.modelData.gloss
+                            text: row.modelData.gloss ? row.modelData.gloss : "还没写释义"
                             color: Theme.textMuted
                             font.family: Theme.fontBody
                             font.pixelSize: 13
@@ -393,13 +533,7 @@ Item {
                     Row {
                         spacing: 16
                         Text {
-                            text: root.entry && root.entry.pos ? root.entry.pos : ""
-                            color: Theme.textMuted
-                            font.family: Theme.fontBody
-                            font.pixelSize: 13
-                        }
-                        Text {
-                            text: root.entry && root.entry.group ? root.entry.group : ""
+                            text: root.entry && root.entry.id ? root.shownPos(root.entry.pos) : ""
                             color: Theme.textMuted
                             font.family: Theme.fontBody
                             font.pixelSize: 13
@@ -412,44 +546,76 @@ Item {
                             font.bold: true
                         }
                     }
-
-                    EditorBlock {
-                        id: glossEdit
-                        label: "释义"
-                        placeholder: "这个词的中文意思"
-                        boxHeight: 56
-                    }
-                    EditorBlock {
-                        id: exampleEdit
-                        label: "例句"
-                        placeholder: "写一句你自己会说的"
-                        boxHeight: 84
-                    }
-                    EditorBlock {
-                        id: exampleGlossEdit
-                        label: "译文"
-                        placeholder: "这句话的中文"
-                        boxHeight: 64
-                    }
-                    EditorBlock {
-                        id: noteEdit
-                        label: "用法"
-                        placeholder: "它和相近的说法差在哪"
-                        boxHeight: 84
-                    }
-                    EditorBlock {
-                        id: mnemonicEdit
-                        label: "笔记"
-                        placeholder: "只留给自己的提醒"
-                        boxHeight: 72
+                    Row {
+                        spacing: 8
+                        QuietButton { label: "修改"; onPicked: root.openEdit() }
+                        QuietButton { label: "删除"; danger: true; onPicked: root.openDelete() }
                     }
 
-                    Column {
+                    DetailBlock { label: "释义"; value: root.entry ? root.entry.gloss : "" }
+                    DetailBlock { label: "例句"; value: root.entry ? root.entry.example : "" }
+                    DetailBlock { label: "笔记"; value: root.entry ? root.entry.mnemonic : "" }
+                }
+            }
+        }
+    }
+
+    Popup {
+        id: editorPopup
+        modal: true
+        focus: true
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: 440
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        onOpened: wordInput.input.forceActiveFocus()
+        onClosed: root.posHintLabel = ""
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusXl
+            border.color: Theme.border
+            border.width: 1
+        }
+        contentItem: Item {
+            implicitWidth: 440
+            implicitHeight: Math.min(formColumn.implicitHeight + 56, 680)
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: 28
+                contentWidth: width
+                contentHeight: formColumn.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                Column {
+                    id: formColumn
+                    width: parent.width
+                    spacing: 16
+                    Text {
                         width: parent.width
-                        spacing: 10
-                        visible: root.entry && root.entry.lookalikes && root.entry.lookalikes.length > 0
+                        visible: root.formId !== ""
+                        wrapMode: Text.WordWrap
+                        text: "改完会写回这一条，闪卡用的也是它。"
+                        color: Theme.textMuted
+                        font.family: Theme.fontBody
+                        font.pixelSize: 13
+                    }
+                    FormLine {
+                        id: wordInput
+                        width: parent.width
+                        label: "单词"
+                        placeholder: "刚遇到的词"
+                        fontFamily: Theme.fontDisplay
+                        fontSize: 20
+                        boxHeight: 48
+                    }
+                    Column {
+                        id: posField
+                        width: parent.width
+                        spacing: 8
                         Text {
-                            text: "相近"
+                            text: "词性"
                             color: Theme.textMuted
                             font.family: Theme.fontBody
                             font.pixelSize: 10
@@ -459,31 +625,111 @@ Item {
                             width: parent.width
                             spacing: 8
                             Repeater {
-                                model: root.entry && root.entry.lookalikes ? root.entry.lookalikes : []
-                                delegate: Rectangle {
-                                    id: likeChip
+                                model: PosCatalog.kinds
+                                delegate: Item {
                                     required property var modelData
-                                    implicitWidth: likeText.implicitWidth + 20
-                                    implicitHeight: 36
-                                    radius: Theme.radiusSm
-                                    color: likeHover.hovered ? Theme.muted : "transparent"
-                                    border.width: 1
-                                    border.color: Theme.line
-                                    Text {
-                                        id: likeText
-                                        anchors.centerIn: parent
-                                        text: likeChip.modelData.glyph + "  " + likeChip.modelData.gloss
-                                        color: Theme.text
-                                        font.family: Theme.fontBody
-                                        font.pixelSize: 13
+                                    implicitWidth: choice.implicitWidth
+                                    implicitHeight: choice.implicitHeight
+                                    PosChoice {
+                                        id: choice
+                                        kindLabel: modelData.label
+                                        chosen: root.formPos === modelData.label
+                                        onPicked: root.pickPos(modelData.label)
                                     }
-                                    HoverHandler { id: likeHover }
-                                    TapHandler { onTapped: root.choose(likeChip.modelData.id) }
                                 }
                             }
                         }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: root.posHintText(root.posHintLabel || root.formPos)
+                            color: Theme.textMuted
+                            font.family: Theme.fontBody
+                            font.pixelSize: 13
+                        }
+                    }
+                    FormLine {
+                        id: glossInput
+                        width: parent.width
+                        label: "释义"
+                        placeholder: "这个词的中文意思"
+                    }
+                    FormLine {
+                        id: exampleInput
+                        width: parent.width
+                        label: "例句"
+                        placeholder: "在这里添加例句"
+                        boxHeight: 72
+                    }
+                    FormLine {
+                        id: mnemonicInput
+                        width: parent.width
+                        label: "笔记"
+                        placeholder: "可记录该词汇的特殊之处。"
+                        boxHeight: 84
+                    }
+                    Text {
+                        width: parent.width
+                        visible: root.formError !== ""
+                        text: root.formError
+                        color: Theme.accent
+                        font.family: Theme.fontBody
+                        font.pixelSize: 13
+                    }
+                    Row {
+                        spacing: 8
+                        QuietButton { label: "取消"; onPicked: editorPopup.close() }
+                        QuietButton { label: "保存"; filled: true; onPicked: root.saveForm() }
                     }
                 }
+            }
+        }
+    }
+
+    Popup {
+        id: deletePopup
+        modal: true
+        focus: true
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: 360
+        padding: 28
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        background: Rectangle {
+            color: Theme.surface
+            radius: Theme.radiusXl
+            border.color: Theme.border
+            border.width: 1
+        }
+        contentItem: Column {
+            spacing: 16
+            Text {
+                text: "删除"
+                color: Theme.text
+                font.family: Theme.fontDisplay
+                font.pixelSize: 28
+                font.bold: true
+            }
+            Text {
+                width: 304
+                wrapMode: Text.WordWrap
+                text: "从词库删掉「" + (root.entry && root.entry.glyph ? root.entry.glyph : "这个词") + "」？这条词的复习记录也会一起去掉。"
+                color: Theme.text
+                font.family: Theme.fontBody
+                font.pixelSize: 15
+            }
+            Text {
+                width: 304
+                visible: root.deleteError !== ""
+                text: root.deleteError
+                color: Theme.accent
+                font.family: Theme.fontBody
+                font.pixelSize: 13
+            }
+            Row {
+                spacing: 8
+                QuietButton { label: "取消"; onPicked: deletePopup.close() }
+                QuietButton { label: "删除"; danger: true; onPicked: root.removeSelected() }
             }
         }
     }

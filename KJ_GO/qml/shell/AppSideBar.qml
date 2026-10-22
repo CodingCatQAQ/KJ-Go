@@ -7,6 +7,7 @@ Item {
     property int module: 0
     property string language: "ja"
     property string studyView: "overview"
+    property string kanaChart: "seion"
     property string filter: "all"
     property var counts: ({ total: 0, mastered: 0, learning: 0, fresh: 0 })
     property int weakCount: 0
@@ -19,10 +20,24 @@ Item {
     signal pickFront(string id)
 
     readonly property bool korean: language === "ko"
-    readonly property int syllableTotal: {
+    function chartTotal(setId) {
         var rev = studyStore.revision
-        var counts = studyStore.counts(root.korean ? "ko-syllable" : "ja-seion")
+        var counts = studyStore.counts(setId)
         return counts && counts.total ? counts.total : 0
+    }
+    readonly property int hangulTotal: { var rev = studyStore.revision; return chartTotal("ko-syllable") }
+    readonly property int seionTotal: { var rev = studyStore.revision; return chartTotal("ja-seion") }
+    readonly property int dakuonTotal: { var rev = studyStore.revision; return chartTotal("ja-dakuon") }
+    readonly property int handakuonTotal: { var rev = studyStore.revision; return chartTotal("ja-handakuon") }
+    readonly property int youonTotal: { var rev = studyStore.revision; return chartTotal("ja-youon") }
+    readonly property string jaChartLabel: {
+        if (kanaChart === "dakuon")
+            return "浊音"
+        if (kanaChart === "handakuon")
+            return "半浊音"
+        if (kanaChart === "youon")
+            return "拗音"
+        return "清音"
     }
     readonly property int vocabTotal: {
         var rev = studyStore.revision
@@ -175,13 +190,45 @@ Item {
             visible: root.module === 0
             spacing: 2
             Layout.fillWidth: true
-            SectionLabel { text: root.korean ? "音节 · SYLLABLE" : "五十音 · GOJŪON" }
             NavItem {
+                visible: root.korean
                 Layout.fillWidth: true
-                label: root.korean ? "音节总览" : "清音总览"
-                meta: "" + root.syllableTotal
+                label: "谚文"
+                meta: "" + root.hangulTotal
                 active: root.studyView === "overview"
                 onPicked: root.openStudy("overview")
+            }
+            NavItem {
+                visible: !root.korean
+                Layout.fillWidth: true
+                label: "清音"
+                meta: "" + root.seionTotal
+                active: root.studyView === "overview" && root.kanaChart === "seion"
+                onPicked: root.openStudy("seion")
+            }
+            NavItem {
+                visible: !root.korean
+                Layout.fillWidth: true
+                label: "浊音"
+                meta: "" + root.dakuonTotal
+                active: root.studyView === "overview" && root.kanaChart === "dakuon"
+                onPicked: root.openStudy("dakuon")
+            }
+            NavItem {
+                visible: !root.korean
+                Layout.fillWidth: true
+                label: "半浊音"
+                meta: "" + root.handakuonTotal
+                active: root.studyView === "overview" && root.kanaChart === "handakuon"
+                onPicked: root.openStudy("handakuon")
+            }
+            NavItem {
+                visible: !root.korean
+                Layout.fillWidth: true
+                label: "拗音"
+                meta: "" + root.youonTotal
+                active: root.studyView === "overview" && root.kanaChart === "youon"
+                onPicked: root.openStudy("youon")
             }
             NavItem {
                 Layout.fillWidth: true
@@ -190,14 +237,12 @@ Item {
                 active: root.studyView === "vocab"
                 onPicked: root.openStudy("vocab")
             }
-            NavItem { visible: !root.korean; Layout.fillWidth: true; label: "浊音 · 半浊音"; soon: true }
-            NavItem { visible: !root.korean; Layout.fillWidth: true; label: "拗音"; soon: true }
 
             Item { height: 28; width: 1 }
             ColumnLayout {
                 spacing: 2
                 Layout.fillWidth: true
-                SectionLabel { text: "后续模块 · NEXT" }
+                SectionLabel { text: "后续模块" }
                 NavItem { Layout.fillWidth: true; label: "语法"; soon: true }
             }
         }
@@ -206,7 +251,7 @@ Item {
             visible: root.module === 1
             spacing: 2
             Layout.fillWidth: true
-            SectionLabel { text: "复习队列 · QUEUE" }
+            SectionLabel { text: "复习队列" }
             NavItem {
                 Layout.fillWidth: true
                 label: "今日复习"
@@ -223,7 +268,7 @@ Item {
             }
             NavItem {
                 Layout.fillWidth: true
-                label: root.korean ? "全部词汇" : "全部五十音"
+                label: root.korean ? "全部词汇" : ("全部" + root.jaChartLabel)
                 meta: "" + (root.counts.total || 0)
                 active: root.queueMode === "all"
                 onPicked: root.pickQueue("all")
@@ -233,7 +278,7 @@ Item {
                 visible: !root.korean
                 spacing: 2
                 Layout.fillWidth: true
-                SectionLabel { text: "正面显示 · FRONT" }
+                SectionLabel { text: "正面显示" }
                 NavItem {
                     Layout.fillWidth: true
                     label: "平假名"
@@ -257,7 +302,7 @@ Item {
                 visible: root.korean
                 spacing: 2
                 Layout.fillWidth: true
-                SectionLabel { text: "正面显示 · FRONT" }
+                SectionLabel { text: "正面显示" }
                 NavItem {
                     Layout.fillWidth: true
                     label: "韩语单词"
@@ -283,7 +328,7 @@ Item {
             visible: root.module === 2 || root.module === 3
             spacing: 2
             Layout.fillWidth: true
-            SectionLabel { text: root.module === 2 ? "游戏 · GAMES" : "统计 · STATS" }
+            SectionLabel { text: root.module === 2 ? "游戏" : "统计" }
             NavItem { Layout.fillWidth: true; label: root.module === 2 ? "假名打地鼠" : "总览"; soon: true }
             NavItem { Layout.fillWidth: true; label: root.module === 2 ? "听音辨字" : "记忆曲线"; soon: true }
             NavItem { Layout.fillWidth: true; label: root.module === 2 ? "限时连线" : "弱项热力图"; soon: true }

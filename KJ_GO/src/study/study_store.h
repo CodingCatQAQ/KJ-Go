@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonObject>
 #include <QObject>
 #include <QSqlDatabase>
 #include <QVariantList>
@@ -26,6 +27,10 @@ public:
     Q_INVOKABLE void rate(const QString &itemId, bool correct, const QString &activity, const QString &prompt);
     Q_INVOKABLE void setMnemonic(const QString &itemId, const QString &text);
     Q_INVOKABLE void setFields(const QString &itemId, const QVariantMap &fields);
+    Q_INVOKABLE QString scriptIssue(const QString &lang, const QString &word) const;
+    Q_INVOKABLE QString addVocab(const QString &setId, const QString &lang, const QVariantMap &fields);
+    Q_INVOKABLE bool updateVocab(const QString &itemId, const QVariantMap &fields);
+    Q_INVOKABLE bool removeVocab(const QString &itemId);
 
 signals:
     void changed();
@@ -33,17 +38,33 @@ signals:
 private:
     bool openDatabase();
     bool migrate();
+    struct KanaChartRow;
+
     bool seedIfEmpty();
+    bool ensureCharts();
     bool seedJapanese();
     bool seedKorean();
-    bool ensureKoreanVocab();
-    bool seedKoreanVocab();
+    bool seedDakuon();
+    bool seedHandakuon();
+    bool seedYouon();
+    bool seedKanaChart(const QString &layoutId, const QString &setId, const QString &title,
+                       const QStringList &columns, const QStringList &columnLabels,
+                       const KanaChartRow *rows, int rowCount);
+    bool koreanChartCurrent() const;
+    bool layoutReady(const QString &layoutId) const;
+    bool clearSet(const QString &setId);
+    bool saveSyllable(const QString &id, const QString &lang, const QString &setId, const QJsonObject &payload,
+                      const QString &glyph, const QString &reading, bool existed);
+    bool removeSyllable(const QString &id);
     bool exec(const QString &sql);
     bool upgradeMemory();
     bool recomputeStatuses();
     QString statusFor(const QString &itemId) const;
     bool insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload, const QString &kind = QStringLiteral("syllable"));
     bool insertFace(const QString &itemId, const QString &promptKind, const QVariantMap &prompt, const QVariantMap &answer);
+    bool upsertFace(const QString &itemId, const QString &promptKind, const QVariantMap &prompt, const QVariantMap &answer);
+    bool syncVocabFaces(const QString &itemId, const QString &glyph, const QString &gloss);
+    bool vocabKind(const QString &itemId, QJsonObject *payload = nullptr) const;
 
     QSqlDatabase m_db;
     QString m_error;

@@ -1,4 +1,5 @@
 singleton KanaCatalog 1.0 KanaCatalog.qml
+singleton PosCatalog 1.0 PosCatalog.qml
 KanaOverviewPage 1.0 KanaOverviewPage.qml
 KanaDetailPage 1.0 KanaDetailPage.qml
 FlashcardPage 1.0 FlashcardPage.qml

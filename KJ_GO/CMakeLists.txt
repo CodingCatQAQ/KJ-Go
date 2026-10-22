@@ -49,6 +49,7 @@ qt_add_qml_module(appKJ_GO
         qml/components/ScriptToggle.qml
         qml/components/Kbd.qml
         qml/modules/gojuon/KanaCatalog.qml
+        qml/modules/gojuon/PosCatalog.qml
         qml/modules/hangul/HangulCatalog.qml
         qml/modules/gojuon/KanaOverviewPage.qml
         qml/modules/gojuon/KanaDetailPage.qml
@@ -88,7 +89,6 @@ qt_add_resources(appKJ_GO "study_seed"
     BASE "${CMAKE_CURRENT_SOURCE_DIR}/data"
     FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ja_seion.json"
-        "${CMAKE_CURRENT_SOURCE_DIR}/data/seed_ko_vocab.json"
 )
 
 target_link_libraries(appKJ_GO

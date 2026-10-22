@@ -12,12 +12,34 @@ Item {
     property string selectedRomaji: "a"
     property string filter: "all"
     property string language: "ja"
+    property string kanaChart: "seion"
     property string flashQueue: "today"
     property string flashFront: "hira"
 
-    readonly property string studySet: language === "ko" ? "ko-syllable" : "ja-seion"
+    readonly property string studySet: {
+        if (language === "ko")
+            return "ko-syllable"
+        if (kanaChart === "dakuon")
+            return "ja-dakuon"
+        if (kanaChart === "handakuon")
+            return "ja-handakuon"
+        if (kanaChart === "youon")
+            return "ja-youon"
+        return "ja-seion"
+    }
+    readonly property string studyLayout: {
+        if (language === "ko")
+            return "ko-syllable"
+        if (kanaChart === "dakuon")
+            return "ja-gojuon-dakuon"
+        if (kanaChart === "handakuon")
+            return "ja-gojuon-handakuon"
+        if (kanaChart === "youon")
+            return "ja-gojuon-youon"
+        return "ja-gojuon-seion"
+    }
     readonly property string vocabSet: language === "ko" ? "ko-vocab" : "ja-vocab"
-    readonly property string flashSet: language === "ko" ? "ko-vocab" : "ja-seion"
+    readonly property string flashSet: language === "ko" ? "ko-vocab" : studySet
     readonly property string activeSet: currentModule === 1 ? flashSet : (studyView === "vocab" ? vocabSet : studySet)
     readonly property var counts: {
         var rev = studyStore.revision
@@ -34,7 +56,13 @@ Item {
 
     function showStudy(view) {
         currentModule = 0
-        studyView = view
+        if (view === "vocab") {
+            studyView = "vocab"
+            return
+        }
+        studyView = "overview"
+        if (view === "seion" || view === "dakuon" || view === "handakuon" || view === "youon")
+            kanaChart = view
     }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
@@ -48,6 +76,7 @@ Item {
         module: root.currentModule
         language: root.language
         studyView: root.studyView
+        kanaChart: root.kanaChart
         filter: root.filter
         counts: root.counts
         weakCount: root.weakCount
@@ -95,6 +124,7 @@ Item {
                 anchors.fill: parent
                 visible: root.studyView === "overview"
                 language: root.language
+                layoutId: root.studyLayout
                 katakana: root.katakana
                 onToggleScript: root.katakana = katakana
             }

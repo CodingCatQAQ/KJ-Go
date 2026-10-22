@@ -114,9 +114,9 @@ Item {
     }
 
     function heroSize(text) {
-        if (!vocabDeck)
-            return Theme.kanaHero
         var n = text ? text.length : 1
+        if (!vocabDeck)
+            return n <= 1 ? Theme.kanaHero : 108
         if (n <= 2)
             return 108
         if (n <= 4)
@@ -481,7 +481,7 @@ Item {
                             Text {
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
-                                text: root.entry && root.entry.pos ? root.entry.pos : ""
+                                text: !root.entry ? "" : (PosCatalog.find(root.entry.pos) ? root.entry.pos : "其他")
                                 color: Theme.textMuted
                                 font.family: Theme.fontBody
                                 font.pixelSize: 11
@@ -497,36 +497,25 @@ Item {
                                 font.pixelSize: root.heroSize(text)
                                 font.bold: true
                             }
-                            Column {
+                            Text {
                                 width: parent.width
-                                spacing: 6
-                                Text {
-                                    width: parent.width
-                                    horizontalAlignment: Text.AlignHCenter
-                                    wrapMode: Text.WordWrap
-                                    text: root.entry ? root.entry.example : ""
-                                    color: Theme.text
-                                    font.family: Theme.fontBody
-                                    font.pixelSize: 16
-                                }
-                                Text {
-                                    width: parent.width
-                                    horizontalAlignment: Text.AlignHCenter
-                                    wrapMode: Text.WordWrap
-                                    text: root.entry ? root.entry.exampleGloss : ""
-                                    color: Theme.textMuted
-                                    font.family: Theme.fontBody
-                                    font.pixelSize: 13
-                                }
+                                visible: root.entry && root.entry.example
+                                horizontalAlignment: Text.AlignHCenter
+                                wrapMode: Text.WordWrap
+                                text: root.entry ? root.entry.example : ""
+                                color: Theme.text
+                                font.family: Theme.fontBody
+                                font.pixelSize: 16
                             }
                             Text {
                                 width: parent.width
+                                visible: root.entry && root.entry.mnemonic
                                 horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
-                                text: root.entry ? root.entry.note : ""
+                                text: root.entry ? root.entry.mnemonic : ""
                                 color: Theme.textMuted
                                 font.family: Theme.fontBody
-                                font.pixelSize: 12
+                                font.pixelSize: 15
                             }
                         }
                         Text {

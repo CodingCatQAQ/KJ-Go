@@ -7,15 +7,17 @@ import "../../components"
 Item {
     id: root
     property string language: "ja"
+    property string layoutId: "ja-gojuon-seion"
     property bool katakana: false
     property string filter: "all"
     property string hovered: "ja:syllable:a"
+    property string pickedInitial: ""
+    property bool boardReady: false
     signal toggleScript(bool katakana)
 
     readonly property bool korean: language === "ko"
-    readonly property string layoutId: korean ? "ko-syllable" : "ja-gojuon-seion"
     readonly property int pageInset: 48
-    readonly property int rowHeadW: korean ? 32 : Theme.navInset - 8
+    readonly property int rowHeadW: korean ? 32 : 44
     readonly property int chartShift: 20
     readonly property int scrollGap: 16
     readonly property var board: {
@@ -26,6 +28,14 @@ Item {
         return data
     }
     readonly property int chartCols: Math.max(1, root.board.columns.length)
+    readonly property var hangulRow: {
+        var rows = root.board.rows || []
+        for (var i = 0; i < rows.length; ++i) {
+            if (rows[i].short === root.pickedInitial)
+                return rows[i]
+        }
+        return rows.length > 0 ? rows[0] : null
+    }
     readonly property var entry: {
         var rev = studyStore.revision
         return root.hovered ? studyStore.item(root.hovered) : ({})
@@ -38,11 +48,47 @@ Item {
         return root.entry.glyph
     }
 
-    onLanguageChanged: {
+    function firstCell(row) {
+        if (!row)
+            return ""
+        if (row.sections && row.sections.length > 0) {
+            var grouped = row.sections[0].cells || []
+            if (grouped.length > 0 && grouped[0].id)
+                return grouped[0].id
+        }
+        var cells = row.cells || []
+        return cells.length > 0 && cells[0].id ? cells[0].id : ""
+    }
+
+    function focusLayout() {
         var data = studyStore.layout(root.layoutId)
-        var first = data.rows && data.rows.length > 0 ? data.rows[0].cells[0].id : ""
-        hovered = first
-        chartScroll.contentY = 0
+        var rows = data.rows || []
+        hovered = rows.length > 0 ? firstCell(rows[0]) : ""
+        pickedInitial = rows.length > 0 ? rows[0].short : ""
+        if (chartScroll)
+            chartScroll.contentY = 0
+    }
+
+    onLayoutIdChanged: {
+        if (boardReady)
+            focusLayout()
+    }
+
+    function chooseInitial(short) {
+        pickedInitial = short
+        var row = null
+        var rows = board.rows || []
+        for (var i = 0; i < rows.length; ++i) {
+            if (rows[i].short === short) {
+                row = rows[i]
+                break
+            }
+        }
+        var id = firstCell(row)
+        if (id)
+            hovered = id
+        if (chartScroll)
+            chartScroll.contentY = 0
     }
 
     function speak(audio) {
@@ -77,7 +123,11 @@ Item {
     }
 
     onHoveredChanged: loadMnemonic()
-    Component.onCompleted: loadMnemonic()
+    Component.onCompleted: {
+        boardReady = true
+        focusLayout()
+        loadMnemonic()
+    }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
 
@@ -96,15 +146,7 @@ Item {
             ColumnLayout {
                 spacing: 8
                 Text {
-                    text: root.board.eyebrow || ""
-                    color: Theme.textMuted
-                    font.family: Theme.fontBody
-                    font.pixelSize: 11
-                    font.bold: true
-                    font.letterSpacing: 2.4
-                }
-                Text {
-                    text: root.board.title || ""
+                    text: root.board.title || (root.korean ? "한글" : "五十音図")
                     color: Theme.text
                     font.family: Theme.fontDisplay
                     font.pixelSize: Theme.title
@@ -156,6 +198,39 @@ Item {
             color: Theme.border
         }
 
+        Flow {
+            visible: root.korean
+            Layout.fillWidth: true
+            Layout.leftMargin: root.pageInset
+            Layout.rightMargin: 48
+            spacing: 8
+            Repeater {
+                model: root.board.rows
+                delegate: Rectangle {
+                    id: initialChip
+                    required property var modelData
+                    readonly property bool chosen: root.hangulRow && root.hangulRow.short === modelData.short
+                    implicitWidth: initialText.implicitWidth + 18
+                    implicitHeight: 36
+                    radius: Theme.radiusSm
+                    color: chosen ? Theme.text : (initialHover.hovered ? Theme.muted : "transparent")
+                    border.width: chosen ? 0 : 1
+                    border.color: Theme.line
+                    Text {
+                        id: initialText
+                        anchors.centerIn: parent
+                        text: initialChip.modelData.short
+                        color: initialChip.chosen ? Theme.bg : Theme.text
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: 18
+                        font.bold: true
+                    }
+                    HoverHandler { id: initialHover }
+                    TapHandler { onTapped: root.chooseInitial(initialChip.modelData.short) }
+                }
+            }
+        }
+
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -191,6 +266,7 @@ Item {
                     Row {
                         width: parent.width
                         spacing: 8
+                        visible: !root.korean
                         Item { width: root.rowHeadW; height: 16 }
                         Repeater {
                             model: root.board.columns
@@ -209,7 +285,7 @@ Item {
                     }
 
                     Repeater {
-                        model: root.board.rows
+                        model: root.korean ? [] : root.board.rows
                         delegate: Row {
                             id: kanaRow
                             required property var modelData
@@ -282,6 +358,59 @@ Item {
                             }
                         }
                     }
+
+                    Column {
+                        width: parent.width
+                        visible: root.korean
+                        spacing: 22
+
+                        Repeater {
+                            model: root.hangulRow && root.hangulRow.sections ? root.hangulRow.sections : []
+                            delegate: Column {
+                                id: vowelGroup
+                                required property var modelData
+                                width: chart.width
+                                spacing: 10
+                                Text {
+                                    text: vowelGroup.modelData.label
+                                    color: Theme.text
+                                    font.family: Theme.fontDisplay
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+                                Flow {
+                                    width: parent.width
+                                    spacing: 10
+                                    Repeater {
+                                        model: vowelGroup.modelData.cells || []
+                                        delegate: Item {
+                                            id: hangulSlot
+                                            required property var modelData
+                                            readonly property string status: modelData && modelData.status ? modelData.status : "unlearned"
+                                            width: 96
+                                            height: 72
+                                            visible: modelData && modelData.glyph
+                                            KanaCell {
+                                                anchors.fill: parent
+                                                kana: hangulSlot.modelData.glyph
+                                                romaji: hangulSlot.modelData.reading || ""
+                                                mastery: hangulSlot.status
+                                                dimmed: root.filter !== "all" && root.filter !== hangulSlot.status
+                                                onActivated: root.speak(hangulSlot.modelData.audio || "")
+                                                HoverHandler {
+                                                    id: hangulHover
+                                                    onHoveredChanged: {
+                                                        if (hangulHover.hovered && hangulSlot.modelData.id)
+                                                            root.hovered = hangulSlot.modelData.id
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -300,7 +429,7 @@ Item {
                         text: root.heroGlyph
                         color: Theme.text
                         font.family: Theme.fontDisplay
-                        font.pixelSize: Theme.kanaHero
+                        font.pixelSize: root.heroGlyph.length > 1 ? 108 : Theme.kanaHero
                         font.bold: true
                     }
                     Item {
@@ -374,29 +503,65 @@ Item {
                     font.family: Theme.fontBody
                     font.pixelSize: 14
                     font.bold: true
-                    font.letterSpacing: 4
+                    font.letterSpacing: root.entry && root.entry.reading && root.entry.reading.length > 4 ? 1 : 4
                 }
 
                 Item {
+                    id: pairBox
                     width: 280
                     height: 96
+                    readonly property var pairs: {
+                        var entry = root.entry || ({})
+                        var list = []
+                        if (entry.pairLeftLabel)
+                            list.push({ label: entry.pairLeftLabel, glyph: entry.pairLeft || "" })
+                        if (entry.pairRightLabel)
+                            list.push({ label: entry.pairRightLabel, glyph: entry.pairRight || "" })
+                        if (entry.pairCodaLabel)
+                            list.push({ label: entry.pairCodaLabel, glyph: entry.pairCoda || "无" })
+                        return list
+                    }
                     Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.border }
                     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.border }
-                    Column {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-                        Text { text: root.entry && root.entry.pairLeftLabel ? root.entry.pairLeftLabel : ""; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                        Text { text: root.entry && root.entry.pairLeft ? root.entry.pairLeft : ""; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 40; font.bold: true }
-                    }
-                    Rectangle { anchors.horizontalCenter: parent.horizontalCenter; anchors.verticalCenter: parent.verticalCenter; width: 1; height: 56; color: Theme.border }
-                    Column {
-                        anchors.left: parent.horizontalCenter
-                        anchors.leftMargin: 16
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 6
-                        Text { text: root.entry && root.entry.pairRightLabel ? root.entry.pairRightLabel : ""; color: Theme.textMuted; font.pixelSize: 10; font.letterSpacing: 1.8; font.family: Theme.fontBody }
-                        Text { text: root.entry && root.entry.pairRight ? root.entry.pairRight : ""; color: Theme.text; font.family: Theme.fontDisplay; font.pixelSize: 40; font.bold: true }
+                    Row {
+                        anchors.fill: parent
+                        Repeater {
+                            model: pairBox.pairs
+                            delegate: Item {
+                                id: pairSlot
+                                required property var modelData
+                                required property int index
+                                width: pairBox.width / Math.max(1, pairBox.pairs.length)
+                                height: pairBox.height
+                                Rectangle {
+                                    visible: pairSlot.index > 0
+                                    width: 1
+                                    height: 56
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: Theme.border
+                                }
+                                Column {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: pairSlot.index === 0 ? 0 : 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    Text {
+                                        text: pairSlot.modelData.label
+                                        color: Theme.textMuted
+                                        font.pixelSize: 10
+                                        font.letterSpacing: 1.8
+                                        font.family: Theme.fontBody
+                                    }
+                                    Text {
+                                        text: pairSlot.modelData.glyph
+                                        color: Theme.text
+                                        font.family: Theme.fontDisplay
+                                        font.pixelSize: pairBox.pairs.length > 2 ? 32 : 40
+                                        font.bold: true
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

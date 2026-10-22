@@ -33,38 +33,25 @@ Rectangle {
             Layout.fillHeight: true
             Repeater {
                 model: [
-                    { label: "学习", en: "LEARN" },
-                    { label: "闪卡", en: "CARDS" },
-                    { label: "游戏", en: "GAMES" },
-                    { label: "进度", en: "STATS" }
+                    { label: "学习" },
+                    { label: "闪卡" },
+                    { label: "游戏" },
+                    { label: "进度" }
                 ]
                 delegate: Item {
                     id: navItem
                     required property var modelData
                     required property int index
-                    width: navRow.implicitWidth
+                    width: navLabel.implicitWidth
                     height: Theme.topBarH
-                    Row {
-                        id: navRow
+                    Text {
+                        id: navLabel
                         anchors.centerIn: parent
-                        spacing: 8
-                        Text {
-                            id: navLabel
-                            text: navItem.modelData.label
-                            color: navItem.index === root.currentIndex ? Theme.text : Theme.textMuted
-                            font.family: Theme.fontBody
-                            font.pixelSize: 14
-                            font.bold: navItem.index === root.currentIndex
-                        }
-                        Text {
-                            text: navItem.modelData.en
-                            color: navItem.index === root.currentIndex ? Theme.text : Theme.textMuted
-                            opacity: 0.6
-                            font.family: Theme.fontBody
-                            font.pixelSize: 10
-                            font.letterSpacing: 1.6
-                            anchors.baseline: navLabel.baseline
-                        }
+                        text: navItem.modelData.label
+                        color: navItem.index === root.currentIndex ? Theme.text : Theme.textMuted
+                        font.family: Theme.fontBody
+                        font.pixelSize: 14
+                        font.bold: navItem.index === root.currentIndex
                     }
                     Rectangle {
                         visible: navItem.index === root.currentIndex
@@ -90,7 +77,7 @@ Rectangle {
             Text {
                 id: langText
                 anchors.centerIn: parent
-                text: root.language === "ko" ? "한국어 · KO" : "日本語 · JA"
+                text: root.language === "ko" ? "한국어" : "日本語"
                 color: root.language === "ko" ? Theme.langKo : (langHover.hovered ? Theme.text : Theme.textMuted)
                 font.family: Theme.fontBody
                 font.pixelSize: 11

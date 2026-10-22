@@ -9,10 +9,12 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QUuid>
 #include <QVariantList>
 #include <QVector>
 
@@ -55,64 +57,94 @@ QString itemId(const QString &lang, const QString &reading)
     return lang + QStringLiteral(":syllable:") + reading;
 }
 
-struct Initial {
-    int index;
-    char group[8];
-    char16_t jamo;
+#include "ksx1001_hangul.inc"
+
+const char *kInitialReading[] = {
+    "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h",
+};
+const char16_t kInitialJamo[] = {
+    0x3131, 0x3132, 0x3134, 0x3137, 0x3138, 0x3139, 0x3141, 0x3142, 0x3143,
+    0x3145, 0x3146, 0x3147, 0x3148, 0x3149, 0x314A, 0x314B, 0x314C, 0x314D, 0x314E,
+};
+const char *kVowelReading[] = {
+    "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i",
+};
+const char *kFinalReading[] = {
+    "", "k", "kk", "ks", "n", "nj", "nh", "t", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "s", "ss", "ng", "j", "ch", "kh", "th", "ph", "h",
+};
+const char16_t kFinalJamo[] = {
+    0,
+    0x3131, 0x3132, 0x3133, 0x3134, 0x3135, 0x3136, 0x3137,
+    0x3139, 0x313A, 0x313B, 0x313C, 0x313D, 0x313E, 0x313F, 0x3140,
+    0x3141, 0x3142, 0x3144, 0x3145, 0x3146, 0x3147, 0x3148,
+    0x314A, 0x314B, 0x314C, 0x314D, 0x314E,
 };
 
-const Initial kInitials[] = {
-    {0, "g", 0x3131},
-    {2, "n", 0x3134},
-    {3, "d", 0x3137},
-    {5, "r", 0x3139},
-    {6, "m", 0x3141},
-    {7, "b", 0x3142},
-    {9, "s", 0x3145},
-    {11, "ng", 0x3147},
-    {12, "j", 0x3148},
-    {14, "ch", 0x314A},
-    {15, "k", 0x314B},
-    {16, "t", 0x314C},
-    {17, "p", 0x314D},
-    {18, "h", 0x314E},
-};
-
-const int kMedials[] = {0, 2, 4, 6, 8, 12, 13, 17, 18, 20};
-const char *kVowels[] = {"a", "ya", "eo", "yeo", "o", "yo", "u", "yu", "eu", "i"};
-const char16_t kVowelGlyphs[] = {0x314F, 0x3151, 0x3153, 0x3155, 0x3157, 0x315B, 0x315C, 0x3160, 0x3161, 0x3163};
-
-QString hangulSyllable(int initial, int medial)
+QString kanaText(char16_t first, char16_t second)
 {
-    return QString(QChar(0xAC00 + (initial * 21 + medial) * 28));
-}
-
-QJsonArray relatedIds(const QString &lang, const QJsonObject &word)
-{
-    QJsonArray likes;
-    const QJsonArray related = word.value(QStringLiteral("related")).toArray();
-    for (const QJsonValue &value : related) {
-        const QString slug = value.toString();
-        if (!slug.isEmpty())
-            likes.append(lang + QStringLiteral(":vocab:") + slug);
-    }
-    return likes;
+    if (second == 0)
+        return QString(QChar(first));
+    const char16_t pair[] = {first, second};
+    return QString::fromUtf16(pair, 2);
 }
 
 const QStringList kEditableFields = {
     QStringLiteral("gloss"),
-    QStringLiteral("example"),
-    QStringLiteral("exampleGloss"),
-    QStringLiteral("note"),
     QStringLiteral("mnemonic"),
 };
+
+const char *kVocabTextKeys[] = {
+    "pos",
+    "gloss",
+    "example",
+    "mnemonic",
+};
+
+const char *kVocabDroppedKeys[] = {
+    "reading",
+    "group",
+    "exampleGloss",
+    "note",
+    "lookalikes",
+};
+
+QString fieldText(const QVariantMap &fields, const char *key)
+{
+    return fields.value(QLatin1String(key)).toString().trimmed();
+}
+
+QString vocabPos(const QString &text)
+{
+    const QStringList known = {
+        QStringLiteral("体词"),
+        QStringLiteral("动词"),
+        QStringLiteral("形容词"),
+        QStringLiteral("副词"),
+        QStringLiteral("助词"),
+        QStringLiteral("冠形词"),
+        QStringLiteral("语尾/助动词"),
+        QStringLiteral("其他"),
+    };
+    const QString trimmed = text.trimmed();
+    return known.contains(trimmed) ? trimmed : QStringLiteral("其他");
+}
+
+void writeVocabText(QJsonObject &payload, const QString &glyph, const QVariantMap &fields)
+{
+    payload.insert(QStringLiteral("glyph"), glyph);
+    for (const char *key : kVocabTextKeys)
+        payload.insert(QLatin1String(key), fieldText(fields, key));
+    payload.insert(QStringLiteral("pos"), vocabPos(payload.value(QStringLiteral("pos")).toString()));
+    for (const char *key : kVocabDroppedKeys)
+        payload.remove(QLatin1String(key));
+}
 
 }
 
 StudyStore::StudyStore(QObject *parent)
     : QObject(parent)
 {
-    if (!openDatabase() || !migrate() || !seedIfEmpty() || !ensureKoreanVocab())
+    if (!openDatabase() || !migrate() || !seedIfEmpty() || !ensureCharts())
         return;
 }
 
@@ -242,21 +274,100 @@ bool StudyStore::upgradeMemory()
         m_error = version.lastError().text();
         return false;
     }
-    if (version.value(0).toInt() >= 2)
+    const int schema = version.value(0).toInt();
+    if (schema >= 5)
         return true;
 
     if (!m_db.transaction())
         return false;
-    const bool ok = exec(QStringLiteral("UPDATE review_events SET result = 'right' WHERE result = 'good'"))
-        && exec(QStringLiteral("UPDATE review_events SET result = 'wrong' WHERE result = 'again' OR result = 'hard'"))
-        && exec(QStringLiteral("UPDATE memory SET last_result = NULL"))
-        && recomputeStatuses();
+
+    bool ok = true;
+    if (schema < 2) {
+        ok = exec(QStringLiteral("UPDATE review_events SET result = 'right' WHERE result = 'good'"))
+            && exec(QStringLiteral("UPDATE review_events SET result = 'wrong' WHERE result = 'again' OR result = 'hard'"))
+            && exec(QStringLiteral("UPDATE memory SET last_result = NULL"))
+            && recomputeStatuses();
+    }
+    if (ok && schema < 3) {
+        ok = exec(QStringLiteral(
+                "DELETE FROM review_events WHERE item_id IN (SELECT id FROM items WHERE kind = 'vocab')"))
+            && exec(QStringLiteral(
+                "DELETE FROM memory WHERE item_id IN (SELECT id FROM items WHERE kind = 'vocab')"))
+            && exec(QStringLiteral(
+                "DELETE FROM faces WHERE item_id IN (SELECT id FROM items WHERE kind = 'vocab')"))
+            && exec(QStringLiteral("DELETE FROM items WHERE kind = 'vocab'"));
+    }
+    if (ok && schema < 4) {
+        QSqlQuery vocab(m_db);
+        ok = vocab.exec(QStringLiteral("SELECT id, payload FROM items WHERE kind = 'vocab'"));
+        if (!ok)
+            m_error = vocab.lastError().text();
+        QVector<QPair<QString, QString>> updates;
+        while (ok && vocab.next()) {
+            QJsonObject payload = QJsonDocument::fromJson(vocab.value(1).toString().toUtf8()).object();
+            bool changed = false;
+            for (const char *key : kVocabDroppedKeys) {
+                if (!payload.contains(QLatin1String(key)))
+                    continue;
+                payload.remove(QLatin1String(key));
+                changed = true;
+            }
+            if (changed)
+                updates.append({vocab.value(0).toString(), jsonText(payload)});
+        }
+        for (const auto &row : updates) {
+            QSqlQuery update(m_db);
+            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+            update.addBindValue(row.second);
+            update.addBindValue(row.first);
+            if (update.exec())
+                continue;
+            m_error = update.lastError().text();
+            ok = false;
+            break;
+        }
+    }
+    if (ok && schema < 5) {
+        QSqlQuery vocab(m_db);
+        ok = vocab.exec(QStringLiteral("SELECT id, payload FROM items WHERE kind = 'vocab'"));
+        if (!ok)
+            m_error = vocab.lastError().text();
+        QVector<QPair<QString, QString>> updates;
+        while (ok && vocab.next()) {
+            QJsonObject payload = QJsonDocument::fromJson(vocab.value(1).toString().toUtf8()).object();
+            const QString pos = vocabPos(payload.value(QStringLiteral("pos")).toString());
+            if (payload.value(QStringLiteral("pos")).toString() == pos)
+                continue;
+            payload.insert(QStringLiteral("pos"), pos);
+            updates.append({vocab.value(0).toString(), jsonText(payload)});
+        }
+        for (const auto &row : updates) {
+            QSqlQuery update(m_db);
+            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+            update.addBindValue(row.second);
+            update.addBindValue(row.first);
+            if (update.exec())
+                continue;
+            m_error = update.lastError().text();
+            ok = false;
+            break;
+        }
+    }
+
     QSqlQuery bump(m_db);
-    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '2' WHERE key = 'schema'"));
+    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '5' WHERE key = 'schema'"));
     if (!ok || !bump.exec() || !m_db.commit()) {
         m_db.rollback();
-        if (m_error.isEmpty())
-            m_error = QStringLiteral("记忆状态没有升级");
+        if (m_error.isEmpty()) {
+            if (schema < 2)
+                m_error = QStringLiteral("记忆状态没有升级");
+            else if (schema < 3)
+                m_error = QStringLiteral("预制词汇没有清掉");
+            else if (schema < 4)
+                m_error = QStringLiteral("词汇字段没有清掉");
+            else
+                m_error = QStringLiteral("词性没有归类");
+        }
         return false;
     }
     return true;
@@ -503,62 +614,167 @@ bool StudyStore::seedJapanese()
     return false;
 }
 
-bool StudyStore::seedKorean()
+struct KanaSlot {
+    char16_t hira0;
+    char16_t hira1;
+    char16_t kata0;
+    char16_t kata1;
+    const char *reading;
+};
+
+struct StudyStore::KanaChartRow {
+    char16_t head0;
+    char16_t head1;
+    const char *group;
+    const KanaSlot *kana;
+    int count;
+};
+
+bool StudyStore::layoutReady(const QString &layoutId) const
 {
-    const QString lang = QStringLiteral("ko");
-    const QString setId = QStringLiteral("ko-syllable");
-    const QString pairLeftLabel = QString::fromUtf16(u"\u8f85\u97f3");
-    const QString pairRightLabel = QString::fromUtf16(u"\u5143\u97f3");
-    const QString rowSuffix = QString::fromUtf16(u" \u884c");
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("SELECT 1 FROM layouts WHERE id = ?"));
+    query.addBindValue(layoutId);
+    return query.exec() && query.next();
+}
+
+bool StudyStore::koreanChartCurrent() const
+{
+    QSqlQuery layout(m_db);
+    layout.prepare(QStringLiteral("SELECT rows_json FROM layouts WHERE id = 'ko-syllable'"));
+    if (!layout.exec() || !layout.next())
+        return false;
+    if (!layout.value(0).toString().contains(QStringLiteral("\"sections\"")))
+        return false;
+    QSqlQuery count(m_db);
+    if (!count.exec(QStringLiteral("SELECT COUNT(*) FROM items WHERE set_id = 'ko-syllable'")) || !count.next())
+        return false;
+    return count.value(0).toInt() == kKsx1001Count;
+}
+
+bool StudyStore::clearSet(const QString &setId)
+{
+    const QStringList statements = {
+        QStringLiteral("DELETE FROM review_events WHERE item_id IN (SELECT id FROM items WHERE set_id = ?)"),
+        QStringLiteral("DELETE FROM memory WHERE item_id IN (SELECT id FROM items WHERE set_id = ?)"),
+        QStringLiteral("DELETE FROM faces WHERE item_id IN (SELECT id FROM items WHERE set_id = ?)"),
+        QStringLiteral("DELETE FROM items WHERE set_id = ?"),
+        QStringLiteral("DELETE FROM layouts WHERE set_id = ?"),
+    };
+    for (const QString &sql : statements) {
+        QSqlQuery query(m_db);
+        query.prepare(sql);
+        query.addBindValue(setId);
+        if (query.exec())
+            continue;
+        m_error = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool StudyStore::removeSyllable(const QString &id)
+{
+    const QStringList statements = {
+        QStringLiteral("DELETE FROM review_events WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM memory WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM faces WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM items WHERE id = ?"),
+    };
+    for (const QString &sql : statements) {
+        QSqlQuery query(m_db);
+        query.prepare(sql);
+        query.addBindValue(id);
+        if (query.exec())
+            continue;
+        m_error = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool StudyStore::saveSyllable(const QString &id, const QString &lang, const QString &setId, const QJsonObject &payload,
+                              const QString &glyph, const QString &reading, bool existed)
+{
+    if (existed) {
+        QSqlQuery update(m_db);
+        update.prepare(QStringLiteral("UPDATE items SET lang = ?, kind = 'syllable', set_id = ?, payload = ? WHERE id = ?"));
+        update.addBindValue(lang);
+        update.addBindValue(setId);
+        update.addBindValue(jsonText(payload));
+        update.addBindValue(id);
+        if (!update.exec()) {
+            m_error = update.lastError().text();
+            return false;
+        }
+    } else if (!insertItem(id, lang, setId, payload.toVariantMap())) {
+        return false;
+    }
+    return upsertFace(id, QStringLiteral("glyph-to-reading"), promptText(glyph), answerText(reading, {reading}))
+        && upsertFace(id, QStringLiteral("reading-to-glyph"), promptText(reading), answerText(glyph, {glyph}));
+}
+
+bool StudyStore::seedKanaChart(const QString &layoutId, const QString &setId, const QString &title,
+                               const QStringList &columns, const QStringList &columnLabels,
+                               const KanaChartRow *rows, int rowCount)
+{
+    if (!clearSet(setId))
+        return false;
+
+    const QString lang = QStringLiteral("ja");
+    const QString pairLeftLabel = QString::fromUtf16(u"\u5e73\u5047\u540d");
+    const QString pairRightLabel = QString::fromUtf16(u"\u7247\u5047\u540d");
+    const QString rowSuffix = QString::fromUtf16(u"\u884c");
 
     struct Pending {
         QString id;
         QJsonObject payload;
         QString glyph;
+        QString glyphAlt;
         QString reading;
     };
     QVector<Pending> pending;
     QJsonArray layoutRows;
-    QJsonArray columns;
     int position = 0;
 
-    for (char16_t vowel : kVowelGlyphs)
-        columns.append(QString(QChar(vowel)));
-
-    for (const Initial &initial : kInitials) {
-        const QString jamo(QChar(initial.jamo));
-        const bool silent = jamo == QString(QChar(0x3147));
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        const KanaChartRow &row = rows[rowIndex];
+        const QString head = kanaText(row.head0, row.head1);
         QJsonArray cells;
-        for (int column = 0; column < 10; ++column) {
+        for (int column = 0; column < row.count; ++column) {
+            const KanaSlot &slot = row.kana[column];
+            if (slot.reading == nullptr || slot.reading[0] == '\0') {
+                cells.append(QString());
+                continue;
+            }
             ++position;
-            const QString reading = QString::fromLatin1(silent ? "" : initial.group) + QString::fromLatin1(kVowels[column]);
-            const QString vowel(QChar(kVowelGlyphs[column]));
             Pending item;
-            item.id = itemId(lang, reading);
-            item.glyph = hangulSyllable(initial.index, kMedials[column]);
-            item.reading = reading;
+            item.glyph = kanaText(slot.hira0, slot.hira1);
+            item.glyphAlt = kanaText(slot.kata0, slot.kata1);
+            item.reading = QString::fromLatin1(slot.reading);
+            item.id = itemId(lang, item.reading);
             item.payload = QJsonObject{
                 {QStringLiteral("glyph"), item.glyph},
-                {QStringLiteral("glyphAlt"), QString()},
+                {QStringLiteral("glyphAlt"), item.glyphAlt},
                 {QStringLiteral("reading"), item.reading},
                 {QStringLiteral("audio"), QString()},
                 {QStringLiteral("pairLeftLabel"), pairLeftLabel},
-                {QStringLiteral("pairLeft"), jamo},
+                {QStringLiteral("pairLeft"), item.glyph},
                 {QStringLiteral("pairRightLabel"), pairRightLabel},
-                {QStringLiteral("pairRight"), vowel},
-                {QStringLiteral("rowLabel"), jamo + rowSuffix},
-                {QStringLiteral("columnLabel"), vowel},
+                {QStringLiteral("pairRight"), item.glyphAlt},
+                {QStringLiteral("rowLabel"), head + rowSuffix},
+                {QStringLiteral("columnLabel"), column < columnLabels.size() ? columnLabels.at(column) : QString()},
                 {QStringLiteral("column"), column},
                 {QStringLiteral("position"), position},
                 {QStringLiteral("mnemonic"), QString()},
                 {QStringLiteral("lookalikes"), QJsonArray()},
             };
             cells.append(item.id);
-            pending.append(item);
+            pending.append(std::move(item));
         }
         layoutRows.append(QJsonObject{
-            {QStringLiteral("short"), jamo},
-            {QStringLiteral("group"), QString::fromLatin1(initial.group)},
+            {QStringLiteral("short"), head},
+            {QStringLiteral("group"), QString::fromLatin1(row.group)},
             {QStringLiteral("cells"), cells},
         });
     }
@@ -571,8 +787,307 @@ bool StudyStore::seedKorean()
                         promptText(item.glyph), answerText(item.reading, {item.reading})))
             return false;
         if (!insertFace(item.id, QStringLiteral("reading-to-glyph"),
-                        promptText(item.reading), answerText(item.glyph, {item.glyph})))
+                        promptText(item.reading), answerText(item.glyph, {item.glyph, item.glyphAlt})))
             return false;
+    }
+
+    QJsonArray columnJson;
+    for (const QString &column : columns)
+        columnJson.append(column);
+
+    QSqlQuery layout(m_db);
+    layout.prepare(QStringLiteral(
+        "INSERT INTO layouts (id, lang, set_id, eyebrow, title, column_serif, columns_json, rows_json) "
+        "VALUES (?, ?, ?, ?, ?, 0, ?, ?)"));
+    layout.addBindValue(layoutId);
+    layout.addBindValue(lang);
+    layout.addBindValue(setId);
+    layout.addBindValue(QStringLiteral("-"));
+    layout.addBindValue(title);
+    layout.addBindValue(QString::fromUtf8(QJsonDocument(columnJson).toJson(QJsonDocument::Compact)));
+    layout.addBindValue(QString::fromUtf8(QJsonDocument(layoutRows).toJson(QJsonDocument::Compact)));
+    if (layout.exec())
+        return true;
+    m_error = layout.lastError().text();
+    return false;
+}
+
+QStringList danLabels(const char16_t *kana, int count)
+{
+    QStringList labels;
+    const QString suffix = QString::fromUtf16(u"\u6bb5");
+    for (int i = 0; i < count; ++i)
+        labels.append(QString(QChar(kana[i])) + suffix);
+    return labels;
+}
+
+bool StudyStore::seedDakuon()
+{
+    static const KanaSlot ga[] = {
+        {0x304C, 0, 0x30AC, 0, "ga"}, {0x304E, 0, 0x30AE, 0, "gi"}, {0x3050, 0, 0x30B0, 0, "gu"},
+        {0x3052, 0, 0x30B2, 0, "ge"}, {0x3054, 0, 0x30B4, 0, "go"},
+    };
+    static const KanaSlot za[] = {
+        {0x3056, 0, 0x30B6, 0, "za"}, {0x3058, 0, 0x30B8, 0, "ji"}, {0x305A, 0, 0x30BA, 0, "zu"},
+        {0x305C, 0, 0x30BC, 0, "ze"}, {0x305E, 0, 0x30BE, 0, "zo"},
+    };
+    static const KanaSlot da[] = {
+        {0x3060, 0, 0x30C0, 0, "da"}, {0x3062, 0, 0x30C2, 0, "di"}, {0x3065, 0, 0x30C5, 0, "du"},
+        {0x3067, 0, 0x30C7, 0, "de"}, {0x3069, 0, 0x30C9, 0, "do"},
+    };
+    static const KanaSlot ba[] = {
+        {0x3070, 0, 0x30D0, 0, "ba"}, {0x3073, 0, 0x30D3, 0, "bi"}, {0x3076, 0, 0x30D6, 0, "bu"},
+        {0x3079, 0, 0x30D9, 0, "be"}, {0x307C, 0, 0x30DC, 0, "bo"},
+    };
+    static const KanaChartRow rows[] = {
+        {0x304C, 0, "ga", ga, 5},
+        {0x3056, 0, "za", za, 5},
+        {0x3060, 0, "da", da, 5},
+        {0x3070, 0, "ba", ba, 5},
+    };
+    const char16_t dans[] = {0x3042, 0x3044, 0x3046, 0x3048, 0x304A};
+    return seedKanaChart(QStringLiteral("ja-gojuon-dakuon"), QStringLiteral("ja-dakuon"),
+                         QString::fromUtf16(u"\u6fc1\u97f3"),
+                         {QStringLiteral("A"), QStringLiteral("I"), QStringLiteral("U"), QStringLiteral("E"), QStringLiteral("O")},
+                         danLabels(dans, 5), rows, 4);
+}
+
+bool StudyStore::seedHandakuon()
+{
+    static const KanaSlot pa[] = {
+        {0x3071, 0, 0x30D1, 0, "pa"}, {0x3074, 0, 0x30D4, 0, "pi"}, {0x3077, 0, 0x30D7, 0, "pu"},
+        {0x307A, 0, 0x30DA, 0, "pe"}, {0x307D, 0, 0x30DD, 0, "po"},
+    };
+    static const KanaChartRow rows[] = {
+        {0x3071, 0, "pa", pa, 5},
+    };
+    const char16_t dans[] = {0x3042, 0x3044, 0x3046, 0x3048, 0x304A};
+    return seedKanaChart(QStringLiteral("ja-gojuon-handakuon"), QStringLiteral("ja-handakuon"),
+                         QString::fromUtf16(u"\u534a\u6fc1\u97f3"),
+                         {QStringLiteral("A"), QStringLiteral("I"), QStringLiteral("U"), QStringLiteral("E"), QStringLiteral("O")},
+                         danLabels(dans, 5), rows, 1);
+}
+
+bool StudyStore::seedYouon()
+{
+    static const KanaSlot kya[] = {
+        {0x304D, 0x3083, 0x30AD, 0x30E3, "kya"}, {0x304D, 0x3085, 0x30AD, 0x30E5, "kyu"}, {0x304D, 0x3087, 0x30AD, 0x30E7, "kyo"},
+    };
+    static const KanaSlot sha[] = {
+        {0x3057, 0x3083, 0x30B7, 0x30E3, "sha"}, {0x3057, 0x3085, 0x30B7, 0x30E5, "shu"}, {0x3057, 0x3087, 0x30B7, 0x30E7, "sho"},
+    };
+    static const KanaSlot cha[] = {
+        {0x3061, 0x3083, 0x30C1, 0x30E3, "cha"}, {0x3061, 0x3085, 0x30C1, 0x30E5, "chu"}, {0x3061, 0x3087, 0x30C1, 0x30E7, "cho"},
+    };
+    static const KanaSlot nya[] = {
+        {0x306B, 0x3083, 0x30CB, 0x30E3, "nya"}, {0x306B, 0x3085, 0x30CB, 0x30E5, "nyu"}, {0x306B, 0x3087, 0x30CB, 0x30E7, "nyo"},
+    };
+    static const KanaSlot hya[] = {
+        {0x3072, 0x3083, 0x30D2, 0x30E3, "hya"}, {0x3072, 0x3085, 0x30D2, 0x30E5, "hyu"}, {0x3072, 0x3087, 0x30D2, 0x30E7, "hyo"},
+    };
+    static const KanaSlot mya[] = {
+        {0x307F, 0x3083, 0x30DF, 0x30E3, "mya"}, {0x307F, 0x3085, 0x30DF, 0x30E5, "myu"}, {0x307F, 0x3087, 0x30DF, 0x30E7, "myo"},
+    };
+    static const KanaSlot rya[] = {
+        {0x308A, 0x3083, 0x30EA, 0x30E3, "rya"}, {0x308A, 0x3085, 0x30EA, 0x30E5, "ryu"}, {0x308A, 0x3087, 0x30EA, 0x30E7, "ryo"},
+    };
+    static const KanaSlot gya[] = {
+        {0x304E, 0x3083, 0x30AE, 0x30E3, "gya"}, {0x304E, 0x3085, 0x30AE, 0x30E5, "gyu"}, {0x304E, 0x3087, 0x30AE, 0x30E7, "gyo"},
+    };
+    static const KanaSlot ja[] = {
+        {0x3058, 0x3083, 0x30B8, 0x30E3, "ja"}, {0x3058, 0x3085, 0x30B8, 0x30E5, "ju"}, {0x3058, 0x3087, 0x30B8, 0x30E7, "jo"},
+    };
+    static const KanaSlot dya[] = {
+        {0x3062, 0x3083, 0x30C2, 0x30E3, "dya"}, {0x3062, 0x3085, 0x30C2, 0x30E5, "dyu"}, {0x3062, 0x3087, 0x30C2, 0x30E7, "dyo"},
+    };
+    static const KanaSlot bya[] = {
+        {0x3073, 0x3083, 0x30D3, 0x30E3, "bya"}, {0x3073, 0x3085, 0x30D3, 0x30E5, "byu"}, {0x3073, 0x3087, 0x30D3, 0x30E7, "byo"},
+    };
+    static const KanaSlot pya[] = {
+        {0x3074, 0x3083, 0x30D4, 0x30E3, "pya"}, {0x3074, 0x3085, 0x30D4, 0x30E5, "pyu"}, {0x3074, 0x3087, 0x30D4, 0x30E7, "pyo"},
+    };
+    static const KanaChartRow rows[] = {
+        {0x304D, 0x3083, "kya", kya, 3},
+        {0x3057, 0x3083, "sha", sha, 3},
+        {0x3061, 0x3083, "cha", cha, 3},
+        {0x306B, 0x3083, "nya", nya, 3},
+        {0x3072, 0x3083, "hya", hya, 3},
+        {0x307F, 0x3083, "mya", mya, 3},
+        {0x308A, 0x3083, "rya", rya, 3},
+        {0x304E, 0x3083, "gya", gya, 3},
+        {0x3058, 0x3083, "ja", ja, 3},
+        {0x3062, 0x3083, "dya", dya, 3},
+        {0x3073, 0x3083, "bya", bya, 3},
+        {0x3074, 0x3083, "pya", pya, 3},
+    };
+    const char16_t dans[] = {0x3084, 0x3086, 0x3088};
+    return seedKanaChart(QStringLiteral("ja-gojuon-youon"), QStringLiteral("ja-youon"),
+                         QString::fromUtf16(u"\u62d7\u97f3"),
+                         {QStringLiteral("YA"), QStringLiteral("YU"), QStringLiteral("YO")},
+                         danLabels(dans, 3), rows, 12);
+}
+
+bool StudyStore::ensureCharts()
+{
+    const bool koreanReady = koreanChartCurrent();
+    const bool dakuonReady = layoutReady(QStringLiteral("ja-gojuon-dakuon"));
+    const bool handakuonReady = layoutReady(QStringLiteral("ja-gojuon-handakuon"));
+    const bool youonReady = layoutReady(QStringLiteral("ja-gojuon-youon"));
+    if (koreanReady && dakuonReady && handakuonReady && youonReady)
+        return true;
+
+    if (!m_db.transaction())
+        return false;
+    bool ok = true;
+    if (!dakuonReady)
+        ok = seedDakuon();
+    if (ok && !handakuonReady)
+        ok = seedHandakuon();
+    if (ok && !youonReady)
+        ok = seedYouon();
+    if (ok && !koreanReady)
+        ok = seedKorean();
+    if (!ok || !m_db.commit()) {
+        m_db.rollback();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("音节表没有写入");
+        return false;
+    }
+    return true;
+}
+
+bool StudyStore::seedKorean()
+{
+    const QString lang = QStringLiteral("ko");
+    const QString setId = QStringLiteral("ko-syllable");
+    const QString pairLeftLabel = QString::fromUtf16(u"\u8f85\u97f3");
+    const QString pairRightLabel = QString::fromUtf16(u"\u5143\u97f3");
+    const QString pairCodaLabel = QString::fromUtf16(u"\u6536\u97f3");
+    const QString rowSuffix = QString::fromUtf16(u"\u884c");
+
+    QHash<QString, QString> keptMnemonic;
+    QSet<QString> existing;
+    QSqlQuery prior(m_db);
+    prior.prepare(QStringLiteral("SELECT id, payload FROM items WHERE set_id = ?"));
+    prior.addBindValue(setId);
+    if (!prior.exec()) {
+        m_error = prior.lastError().text();
+        return false;
+    }
+    while (prior.next()) {
+        const QString id = prior.value(0).toString();
+        existing.insert(id);
+        const QJsonObject old = QJsonDocument::fromJson(prior.value(1).toString().toUtf8()).object();
+        const QString mnemonic = old.value(QStringLiteral("mnemonic")).toString();
+        if (!mnemonic.isEmpty())
+            keptMnemonic.insert(id, mnemonic);
+    }
+
+    struct Pending {
+        QString id;
+        QJsonObject payload;
+        QString glyph;
+        QString reading;
+        bool existed = false;
+    };
+    QVector<Pending> pending;
+    QJsonArray layoutRows;
+    QJsonArray columns;
+    QSet<QString> keep;
+    int position = 0;
+
+    for (int vowel = 0; vowel < 21; ++vowel)
+        columns.append(QString(QChar(static_cast<char16_t>(0x314F + vowel))));
+
+    int cursor = 0;
+    for (int initial = 0; initial < 19; ++initial) {
+        const QString jamo(QChar(kInitialJamo[initial]));
+        QString group = QString::fromLatin1(kInitialReading[initial]);
+        if (group.isEmpty())
+            group = QStringLiteral("ng");
+        QJsonArray sections;
+        QJsonArray flat;
+        while (cursor < kKsx1001Count && kKsx1001Offset[cursor] / (21 * 28) == initial) {
+            const int medial = (kKsx1001Offset[cursor] / 28) % 21;
+            const QString vowel(QChar(static_cast<char16_t>(0x314F + medial)));
+            QJsonArray cells;
+            while (cursor < kKsx1001Count) {
+                const int offset = kKsx1001Offset[cursor];
+                const int lead = offset / (21 * 28);
+                const int vowelIndex = (offset / 28) % 21;
+                if (lead != initial || vowelIndex != medial)
+                    break;
+                const int finale = offset % 28;
+                ++position;
+                const QString reading = QString::fromLatin1(kInitialReading[lead])
+                    + QString::fromLatin1(kVowelReading[vowelIndex])
+                    + QString::fromLatin1(kFinalReading[finale]);
+                Pending item;
+                item.id = itemId(lang, reading);
+                item.glyph = QString(QChar(0xAC00 + offset));
+                item.reading = reading;
+                item.existed = existing.contains(item.id);
+                const QString coda = finale == 0 ? QString() : QString(QChar(kFinalJamo[finale]));
+                item.payload = QJsonObject{
+                    {QStringLiteral("glyph"), item.glyph},
+                    {QStringLiteral("glyphAlt"), QString()},
+                    {QStringLiteral("reading"), item.reading},
+                    {QStringLiteral("audio"), QString()},
+                    {QStringLiteral("pairLeftLabel"), pairLeftLabel},
+                    {QStringLiteral("pairLeft"), jamo},
+                    {QStringLiteral("pairRightLabel"), pairRightLabel},
+                    {QStringLiteral("pairRight"), vowel},
+                    {QStringLiteral("pairCodaLabel"), pairCodaLabel},
+                    {QStringLiteral("pairCoda"), coda},
+                    {QStringLiteral("rowLabel"), jamo + rowSuffix},
+                    {QStringLiteral("columnLabel"), vowel},
+                    {QStringLiteral("column"), vowelIndex},
+                    {QStringLiteral("position"), position},
+                    {QStringLiteral("mnemonic"), keptMnemonic.value(item.id)},
+                    {QStringLiteral("lookalikes"), QJsonArray()},
+                };
+                cells.append(item.id);
+                flat.append(item.id);
+                keep.insert(item.id);
+                pending.append(std::move(item));
+                ++cursor;
+            }
+            sections.append(QJsonObject{
+                {QStringLiteral("label"), vowel},
+                {QStringLiteral("cells"), cells},
+            });
+        }
+        if (sections.isEmpty())
+            continue;
+        layoutRows.append(QJsonObject{
+            {QStringLiteral("short"), jamo},
+            {QStringLiteral("group"), group},
+            {QStringLiteral("cells"), flat},
+            {QStringLiteral("sections"), sections},
+        });
+    }
+
+    if (pending.size() != kKsx1001Count) {
+        m_error = QStringLiteral("常用韩文音节没有排全");
+        return false;
+    }
+
+    for (Pending &item : pending) {
+        item.payload.insert(QStringLiteral("total"), pending.size());
+        if (!saveSyllable(item.id, lang, setId, item.payload, item.glyph, item.reading, item.existed))
+            return false;
+    }
+    for (const QString &id : existing) {
+        if (!keep.contains(id) && !removeSyllable(id))
+            return false;
+    }
+
+    QSqlQuery drop(m_db);
+    drop.prepare(QStringLiteral("DELETE FROM layouts WHERE id = ?"));
+    drop.addBindValue(setId);
+    if (!drop.exec()) {
+        m_error = drop.lastError().text();
+        return false;
     }
 
     QSqlQuery layout(m_db);
@@ -582,116 +1097,13 @@ bool StudyStore::seedKorean()
     layout.addBindValue(setId);
     layout.addBindValue(lang);
     layout.addBindValue(setId);
-    layout.addBindValue(QStringLiteral("HANGUL") + QString::fromUtf16(u" \u00b7 \u97f3\u8282"));
+    layout.addBindValue(QStringLiteral("-"));
     layout.addBindValue(QString(QChar(0xD55C)) + QChar(0xAE00));
     layout.addBindValue(QString::fromUtf8(QJsonDocument(columns).toJson(QJsonDocument::Compact)));
     layout.addBindValue(QString::fromUtf8(QJsonDocument(layoutRows).toJson(QJsonDocument::Compact)));
     if (layout.exec())
         return true;
     m_error = layout.lastError().text();
-    return false;
-}
-
-bool StudyStore::ensureKoreanVocab()
-{
-    return seedKoreanVocab();
-}
-
-bool StudyStore::seedKoreanVocab()
-{
-    QFile file(QStringLiteral(":/study/seed_ko_vocab.json"));
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_error = QStringLiteral("韩语词汇种子文件没有读到");
-        return false;
-    }
-    const QJsonObject seed = QJsonDocument::fromJson(file.readAll()).object();
-    const QJsonArray items = seed.value(QStringLiteral("items")).toArray();
-    if (items.isEmpty()) {
-        m_error = QStringLiteral("韩语词汇种子文件是空的");
-        return false;
-    }
-
-    const QString lang = seed.value(QStringLiteral("lang")).toString();
-    const QString setId = seed.value(QStringLiteral("setId")).toString();
-    if (!m_db.transaction())
-        return false;
-
-    int position = 0;
-    for (const QJsonValue &value : items) {
-        const QJsonObject word = value.toObject();
-        ++position;
-        const QString slug = word.value(QStringLiteral("slug")).toString();
-        const QString id = lang + QStringLiteral(":vocab:") + slug;
-        const QString glyph = word.value(QStringLiteral("word")).toString();
-        const QString gloss = word.value(QStringLiteral("gloss")).toString();
-        const QString group = word.value(QStringLiteral("group")).toString();
-        const QJsonArray likes = relatedIds(lang, word);
-
-        QSqlQuery existing(m_db);
-        existing.prepare(QStringLiteral("SELECT payload FROM items WHERE id = ?"));
-        existing.addBindValue(id);
-        if (!existing.exec()) {
-            m_error = existing.lastError().text();
-            m_db.rollback();
-            return false;
-        }
-        if (existing.next()) {
-            QJsonObject payload = QJsonDocument::fromJson(existing.value(0).toString().toUtf8()).object();
-            bool changed = false;
-            if (payload.value(QStringLiteral("group")).toString().isEmpty() && !group.isEmpty()) {
-                payload.insert(QStringLiteral("group"), group);
-                changed = true;
-            }
-            if (payload.value(QStringLiteral("lookalikes")).toArray().isEmpty() && !likes.isEmpty()) {
-                payload.insert(QStringLiteral("lookalikes"), likes);
-                changed = true;
-            }
-            if (!changed)
-                continue;
-            QSqlQuery update(m_db);
-            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
-            update.addBindValue(jsonText(payload));
-            update.addBindValue(id);
-            if (!update.exec()) {
-                m_error = update.lastError().text();
-                m_db.rollback();
-                return false;
-            }
-            continue;
-        }
-
-        const QJsonObject payload{
-            {QStringLiteral("glyph"), glyph},
-            {QStringLiteral("glyphAlt"), QString()},
-            {QStringLiteral("reading"), glyph},
-            {QStringLiteral("audio"), QString()},
-            {QStringLiteral("pos"), word.value(QStringLiteral("pos")).toString()},
-            {QStringLiteral("gloss"), gloss},
-            {QStringLiteral("example"), word.value(QStringLiteral("example")).toString()},
-            {QStringLiteral("exampleGloss"), word.value(QStringLiteral("exampleGloss")).toString()},
-            {QStringLiteral("note"), word.value(QStringLiteral("note")).toString()},
-            {QStringLiteral("group"), group},
-            {QStringLiteral("position"), position},
-            {QStringLiteral("total"), items.size()},
-            {QStringLiteral("mnemonic"), QString()},
-            {QStringLiteral("lookalikes"), likes},
-        };
-        if (!insertItem(id, lang, setId, payload.toVariantMap(), QStringLiteral("vocab"))) {
-            m_db.rollback();
-            return false;
-        }
-        if (!insertFace(id, QStringLiteral("word-to-gloss"), promptText(glyph), answerText(gloss, {gloss}))
-            || !insertFace(id, QStringLiteral("gloss-to-word"), promptText(gloss), answerText(glyph, {glyph}))) {
-            m_db.rollback();
-            return false;
-        }
-    }
-
-    if (m_db.commit())
-        return true;
-    m_db.rollback();
-    if (m_error.isEmpty())
-        m_error = QStringLiteral("韩语词汇没有写入");
     return false;
 }
 
@@ -742,11 +1154,32 @@ QVariantMap StudyStore::layout(const QString &layoutId) const
             else
                 cells.append(cards.value(id));
         }
-        rows.append(QVariantMap{
+        QVariantMap rowMap{
             {QStringLiteral("short"), row.value(QStringLiteral("short")).toString()},
             {QStringLiteral("group"), row.value(QStringLiteral("group")).toString()},
             {QStringLiteral("cells"), cells},
-        });
+        };
+        const QJsonArray storedSections = row.value(QStringLiteral("sections")).toArray();
+        if (!storedSections.isEmpty()) {
+            QVariantList sections;
+            for (const QJsonValue &sectionValue : storedSections) {
+                const QJsonObject section = sectionValue.toObject();
+                QVariantList sectionCells;
+                for (const QJsonValue &sectionCell : section.value(QStringLiteral("cells")).toArray()) {
+                    const QString sectionId = sectionCell.toString();
+                    if (sectionId.isEmpty() || !cards.contains(sectionId))
+                        sectionCells.append(QVariantMap{{QStringLiteral("id"), QString()}});
+                    else
+                        sectionCells.append(cards.value(sectionId));
+                }
+                sections.append(QVariantMap{
+                    {QStringLiteral("label"), section.value(QStringLiteral("label")).toString()},
+                    {QStringLiteral("cells"), sectionCells},
+                });
+            }
+            rowMap.insert(QStringLiteral("sections"), sections);
+        }
+        rows.append(rowMap);
     }
 
     const QJsonArray columns = QJsonDocument::fromJson(layout.value(4).toString().toUtf8()).array();
@@ -807,6 +1240,8 @@ QVariantMap StudyStore::item(const QString &itemId) const
     result.insert(QStringLiteral("pairLeft"), payload.value(QStringLiteral("pairLeft")).toString());
     result.insert(QStringLiteral("pairRightLabel"), payload.value(QStringLiteral("pairRightLabel")).toString());
     result.insert(QStringLiteral("pairRight"), payload.value(QStringLiteral("pairRight")).toString());
+    result.insert(QStringLiteral("pairCodaLabel"), payload.value(QStringLiteral("pairCodaLabel")).toString());
+    result.insert(QStringLiteral("pairCoda"), payload.value(QStringLiteral("pairCoda")).toString());
     result.insert(QStringLiteral("rowLabel"), payload.value(QStringLiteral("rowLabel")).toString());
     result.insert(QStringLiteral("columnLabel"), payload.value(QStringLiteral("columnLabel")).toString());
     result.insert(QStringLiteral("position"), payload.value(QStringLiteral("position")).toInt());
@@ -860,7 +1295,6 @@ QVariantList StudyStore::items(const QString &setId) const
             {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
             {QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString()},
             {QStringLiteral("pos"), payload.value(QStringLiteral("pos")).toString()},
-            {QStringLiteral("group"), payload.value(QStringLiteral("group")).toString()},
             {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
         }});
     }
@@ -912,6 +1346,247 @@ void StudyStore::setFields(const QString &itemId, const QVariantMap &fields)
         return;
     ++m_revision;
     emit changed();
+}
+
+bool StudyStore::upsertFace(const QString &itemId, const QString &promptKind, const QVariantMap &prompt, const QVariantMap &answer)
+{
+    QSqlQuery existing(m_db);
+    existing.prepare(QStringLiteral("SELECT id FROM faces WHERE item_id = ? AND prompt_kind = ?"));
+    existing.addBindValue(itemId);
+    existing.addBindValue(promptKind);
+    if (!existing.exec()) {
+        m_error = existing.lastError().text();
+        return false;
+    }
+    if (!existing.next())
+        return insertFace(itemId, promptKind, prompt, answer);
+
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral("UPDATE faces SET prompt = ?, answer = ? WHERE id = ?"));
+    update.addBindValue(jsonText(objectFrom(prompt)));
+    update.addBindValue(jsonText(objectFrom(answer)));
+    update.addBindValue(existing.value(0).toString());
+    if (update.exec())
+        return true;
+    m_error = update.lastError().text();
+    return false;
+}
+
+bool StudyStore::syncVocabFaces(const QString &itemId, const QString &glyph, const QString &gloss)
+{
+    return upsertFace(itemId, QStringLiteral("word-to-gloss"), promptText(glyph), answerText(gloss, {gloss}))
+        && upsertFace(itemId, QStringLiteral("gloss-to-word"), promptText(gloss), answerText(glyph, {glyph}));
+}
+
+bool StudyStore::vocabKind(const QString &itemId, QJsonObject *payload) const
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("SELECT kind, payload FROM items WHERE id = ?"));
+    query.addBindValue(itemId);
+    if (!query.exec() || !query.next())
+        return false;
+    if (query.value(0).toString() != QStringLiteral("vocab"))
+        return false;
+    if (payload)
+        *payload = QJsonDocument::fromJson(query.value(1).toString().toUtf8()).object();
+    return true;
+}
+
+QString StudyStore::scriptIssue(const QString &lang, const QString &word) const
+{
+    bool hangul = false;
+    bool kana = false;
+    bool han = false;
+    for (const QChar &ch : word) {
+        switch (ch.script()) {
+        case QChar::Script_Hangul:
+            hangul = true;
+            break;
+        case QChar::Script_Hiragana:
+        case QChar::Script_Katakana:
+            kana = true;
+            break;
+        case QChar::Script_Han:
+            han = true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (lang == QLatin1String("ko")) {
+        if (!hangul || kana)
+            return QStringLiteral("这个词不是韩文");
+        return {};
+    }
+    if (lang == QLatin1String("ja")) {
+        if (hangul || !(kana || han))
+            return QStringLiteral("这个词不是日文");
+        return {};
+    }
+    return QStringLiteral("这个词库不能添加");
+}
+
+QString StudyStore::addVocab(const QString &setId, const QString &lang, const QVariantMap &fields)
+{
+    if (!m_db.isOpen())
+        return {};
+    const bool japanese = setId == QLatin1String("ja-vocab") && lang == QLatin1String("ja");
+    const bool korean = setId == QLatin1String("ko-vocab") && lang == QLatin1String("ko");
+    if (!japanese && !korean) {
+        m_error = QStringLiteral("这个词库不能添加");
+        return {};
+    }
+
+    const QString glyph = fieldText(fields, "glyph");
+    if (glyph.isEmpty()) {
+        m_error = QStringLiteral("单词不能是空的");
+        return {};
+    }
+    if (fieldText(fields, "gloss").isEmpty()) {
+        m_error = QStringLiteral("中文意思不能是空的");
+        return {};
+    }
+    const QString issue = scriptIssue(lang, glyph);
+    if (!issue.isEmpty()) {
+        m_error = issue;
+        return {};
+    }
+
+    int position = 1;
+    QSqlQuery scan(m_db);
+    scan.prepare(QStringLiteral("SELECT payload FROM items WHERE set_id = ?"));
+    scan.addBindValue(setId);
+    if (!scan.exec()) {
+        m_error = scan.lastError().text();
+        return {};
+    }
+    while (scan.next()) {
+        const QJsonObject row = QJsonDocument::fromJson(scan.value(0).toString().toUtf8()).object();
+        position = qMax(position, row.value(QStringLiteral("position")).toInt() + 1);
+    }
+
+    QJsonObject payload{
+        {QStringLiteral("glyphAlt"), QString()},
+        {QStringLiteral("audio"), QString()},
+        {QStringLiteral("position"), position},
+        {QStringLiteral("total"), position},
+    };
+    writeVocabText(payload, glyph, fields);
+
+    const QString id = lang + QStringLiteral(":vocab:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString gloss = payload.value(QStringLiteral("gloss")).toString();
+    if (!m_db.transaction())
+        return {};
+    if (!insertItem(id, lang, setId, payload.toVariantMap(), QStringLiteral("vocab"))
+        || !syncVocabFaces(id, glyph, gloss)
+        || !m_db.commit()) {
+        m_db.rollback();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("词汇没有写入");
+        return {};
+    }
+    ++m_revision;
+    emit changed();
+    return id;
+}
+
+bool StudyStore::updateVocab(const QString &itemId, const QVariantMap &fields)
+{
+    if (!m_db.isOpen() || itemId.isEmpty())
+        return false;
+
+    const QString glyph = fieldText(fields, "glyph");
+    if (glyph.isEmpty()) {
+        m_error = QStringLiteral("单词不能是空的");
+        return false;
+    }
+    if (fieldText(fields, "gloss").isEmpty()) {
+        m_error = QStringLiteral("中文意思不能是空的");
+        return false;
+    }
+
+    QSqlQuery langQuery(m_db);
+    langQuery.prepare(QStringLiteral("SELECT lang FROM items WHERE id = ?"));
+    langQuery.addBindValue(itemId);
+    if (!langQuery.exec() || !langQuery.next()) {
+        m_error = langQuery.lastError().text();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("只能修改词汇");
+        return false;
+    }
+    const QString issue = scriptIssue(langQuery.value(0).toString(), glyph);
+    if (!issue.isEmpty()) {
+        m_error = issue;
+        return false;
+    }
+
+    QJsonObject payload;
+    if (!vocabKind(itemId, &payload)) {
+        m_error = QStringLiteral("只能修改词汇");
+        return false;
+    }
+    writeVocabText(payload, glyph, fields);
+    const QString gloss = payload.value(QStringLiteral("gloss")).toString();
+
+    if (!m_db.transaction())
+        return false;
+    QSqlQuery update(m_db);
+    update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ? AND kind = 'vocab'"));
+    update.addBindValue(jsonText(payload));
+    update.addBindValue(itemId);
+    if (!update.exec() || !syncVocabFaces(itemId, glyph, gloss) || !m_db.commit()) {
+        m_db.rollback();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("词汇没有保存");
+        return false;
+    }
+    ++m_revision;
+    emit changed();
+    return true;
+}
+
+bool StudyStore::removeVocab(const QString &itemId)
+{
+    if (!m_db.isOpen() || itemId.isEmpty())
+        return false;
+    if (!vocabKind(itemId)) {
+        m_error = QStringLiteral("只能删除词汇");
+        return false;
+    }
+    if (!m_db.transaction())
+        return false;
+
+    const QStringList statements = {
+        QStringLiteral("DELETE FROM review_events WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM memory WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM faces WHERE item_id = ?"),
+        QStringLiteral("DELETE FROM items WHERE id = ? AND kind = 'vocab'"),
+    };
+    for (const QString &sql : statements) {
+        QSqlQuery query(m_db);
+        query.prepare(sql);
+        query.addBindValue(itemId);
+        if (!query.exec()) {
+            m_error = query.lastError().text();
+            m_db.rollback();
+            return false;
+        }
+        if (sql.startsWith(QStringLiteral("DELETE FROM items")) && query.numRowsAffected() != 1) {
+            m_error = QStringLiteral("词汇没有删掉");
+            m_db.rollback();
+            return false;
+        }
+    }
+    if (!m_db.commit()) {
+        m_db.rollback();
+        if (m_error.isEmpty())
+            m_error = QStringLiteral("词汇没有删掉");
+        return false;
+    }
+    ++m_revision;
+    emit changed();
+    return true;
 }
 
 QVariantMap StudyStore::counts(const QString &setId) const
