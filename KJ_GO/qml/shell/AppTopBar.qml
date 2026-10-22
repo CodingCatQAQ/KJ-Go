@@ -35,8 +35,8 @@ Rectangle {
                 model: [
                     { label: "学习" },
                     { label: "闪卡" },
-                    { label: "游戏" },
-                    { label: "进度" }
+                    { label: "进度" },
+                    { label: "游戏" }
                 ]
                 delegate: Item {
                     id: navItem
@@ -70,8 +70,8 @@ Rectangle {
 
         Rectangle {
             Layout.rightMargin: 12
-            Layout.preferredHeight: 36
-            implicitWidth: langText.implicitWidth + 20
+            Layout.preferredHeight: 40
+            implicitWidth: langText.implicitWidth + 28
             radius: Theme.radiusMd
             color: langHover.hovered ? Theme.muted : "transparent"
             Text {
@@ -80,8 +80,9 @@ Rectangle {
                 text: root.language === "ko" ? "한국어" : "日本語"
                 color: root.language === "ko" ? Theme.langKo : (langHover.hovered ? Theme.text : Theme.textMuted)
                 font.family: Theme.fontBody
-                font.pixelSize: 11
-                font.letterSpacing: 1.4
+                font.pixelSize: 16
+                font.bold: true
+                font.letterSpacing: 0.6
             }
             HoverHandler { id: langHover }
             TapHandler { onTapped: root.toggleLanguage() }

@@ -21,6 +21,7 @@ public:
     Q_INVOKABLE QVariantMap item(const QString &itemId) const;
     Q_INVOKABLE QVariantList items(const QString &setId) const;
     Q_INVOKABLE QVariantMap counts(const QString &setId) const;
+    Q_INVOKABLE QVariantMap progress(const QString &lang) const;
     Q_INVOKABLE QStringList weakIds(const QString &setId) const;
     Q_INVOKABLE QStringList itemIds(const QString &setId) const;
     Q_INVOKABLE QStringList reviewQueue(const QString &setId, int limit) const;
@@ -58,6 +59,7 @@ private:
     bool removeSyllable(const QString &id);
     bool exec(const QString &sql);
     bool upgradeMemory();
+    bool attachKanaAudio();
     bool recomputeStatuses();
     QString statusFor(const QString &itemId) const;
     bool insertItem(const QString &id, const QString &lang, const QString &setId, const QVariantMap &payload, const QString &kind = QStringLiteral("syllable"));

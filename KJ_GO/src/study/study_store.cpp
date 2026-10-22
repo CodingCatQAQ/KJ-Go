@@ -2,9 +2,11 @@
 
 #include <algorithm>
 
+#include <QDate>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -88,6 +90,26 @@ QString kanaText(char16_t first, char16_t second)
     return QString::fromUtf16(pair, 2);
 }
 
+QString kanaClip(const QString &reading)
+{
+    static const QHash<QString, QString> alias = {
+        {QStringLiteral("sha"), QStringLiteral("sya")},
+        {QStringLiteral("shu"), QStringLiteral("syu")},
+        {QStringLiteral("sho"), QStringLiteral("syo")},
+        {QStringLiteral("cha"), QStringLiteral("cya")},
+        {QStringLiteral("chu"), QStringLiteral("cyu")},
+        {QStringLiteral("cho"), QStringLiteral("cyo")},
+        {QStringLiteral("ja"), QStringLiteral("zya")},
+        {QStringLiteral("ju"), QStringLiteral("zyu")},
+        {QStringLiteral("jo"), QStringLiteral("zyo")},
+        {QStringLiteral("dya"), QStringLiteral("zya")},
+        {QStringLiteral("dyu"), QStringLiteral("zyu")},
+        {QStringLiteral("dyo"), QStringLiteral("zyo")},
+    };
+    const QString clip = alias.value(reading);
+    return clip.isEmpty() ? reading : clip;
+}
+
 const QStringList kEditableFields = {
     QStringLiteral("gloss"),
     QStringLiteral("mnemonic"),
@@ -165,14 +187,27 @@ bool StudyStore::openDatabase()
         return false;
     }
 
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    if (dir.isEmpty() || !QDir().mkpath(dir)) {
-        m_error = QStringLiteral("学习数据库目录没有创建");
-        return false;
+    const QString fileName = QStringLiteral("study.sqlite");
+    QString path;
+#ifdef KJ_GO_SOURCE_DIR
+    const QString projectDir = QString::fromUtf8(KJ_GO_SOURCE_DIR);
+    if (QFileInfo(projectDir).isDir() && QFileInfo(projectDir).isWritable())
+        path = QDir(projectDir).filePath(fileName);
+#endif
+    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString previous = appDataDir.isEmpty() ? QString() : QDir(appDataDir).filePath(fileName);
+    if (path.isEmpty()) {
+        if (appDataDir.isEmpty() || !QDir().mkpath(appDataDir)) {
+            m_error = QStringLiteral("学习数据库目录没有创建");
+            return false;
+        }
+        path = previous;
+    } else if (!QFile::exists(path) && !previous.isEmpty() && QFile::exists(previous) && !QFile::copy(previous, path)) {
+        path = previous;
     }
 
     m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"));
-    m_db.setDatabaseName(dir + QStringLiteral("/study.sqlite"));
+    m_db.setDatabaseName(path);
     if (!m_db.open()) {
         m_error = QStringLiteral("学习数据库没有打开");
         return false;
@@ -275,7 +310,7 @@ bool StudyStore::upgradeMemory()
         return false;
     }
     const int schema = version.value(0).toInt();
-    if (schema >= 5)
+    if (schema >= 6)
         return true;
 
     if (!m_db.transaction())
@@ -353,9 +388,11 @@ bool StudyStore::upgradeMemory()
             break;
         }
     }
+    if (ok && schema < 6)
+        ok = attachKanaAudio();
 
     QSqlQuery bump(m_db);
-    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '5' WHERE key = 'schema'"));
+    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '6' WHERE key = 'schema'"));
     if (!ok || !bump.exec() || !m_db.commit()) {
         m_db.rollback();
         if (m_error.isEmpty()) {
@@ -365,10 +402,59 @@ bool StudyStore::upgradeMemory()
                 m_error = QStringLiteral("预制词汇没有清掉");
             else if (schema < 4)
                 m_error = QStringLiteral("词汇字段没有清掉");
-            else
+            else if (schema < 5)
                 m_error = QStringLiteral("词性没有归类");
+            else
+                m_error = QStringLiteral("浊音发音没有写上");
         }
         return false;
+    }
+    return true;
+}
+
+bool StudyStore::attachKanaAudio()
+{
+    QSqlQuery items(m_db);
+    if (!items.exec(QStringLiteral(
+            "SELECT id, payload FROM items WHERE set_id IN ('ja-dakuon', 'ja-handakuon', 'ja-youon')"))) {
+        m_error = items.lastError().text();
+        return false;
+    }
+
+    struct Row {
+        QString id;
+        QString payload;
+    };
+    QVector<Row> rows;
+    while (items.next()) {
+        Row row;
+        row.id = items.value(0).toString();
+        row.payload = items.value(1).toString();
+        rows.append(row);
+    }
+
+    for (const Row &row : rows) {
+        QJsonObject payload = QJsonDocument::fromJson(row.payload.toUtf8()).object();
+        const QString reading = payload.value(QStringLiteral("reading")).toString();
+        const QString audio = kanaClip(reading);
+        if (audio.isEmpty())
+            continue;
+        if (payload.value(QStringLiteral("audio")).toString() != audio) {
+            payload.insert(QStringLiteral("audio"), audio);
+            QSqlQuery update(m_db);
+            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+            update.addBindValue(jsonText(payload));
+            update.addBindValue(row.id);
+            if (!update.exec()) {
+                m_error = update.lastError().text();
+                return false;
+            }
+        }
+        const QString glyph = payload.value(QStringLiteral("glyph")).toString();
+        const QString glyphAlt = payload.value(QStringLiteral("glyphAlt")).toString();
+        if (!upsertFace(row.id, QStringLiteral("listen"),
+                        promptAudio(audio), answerText(glyph, {glyph, glyphAlt})))
+            return false;
     }
     return true;
 }
@@ -732,6 +818,7 @@ bool StudyStore::seedKanaChart(const QString &layoutId, const QString &setId, co
         QString glyph;
         QString glyphAlt;
         QString reading;
+        QString audio;
     };
     QVector<Pending> pending;
     QJsonArray layoutRows;
@@ -752,12 +839,13 @@ bool StudyStore::seedKanaChart(const QString &layoutId, const QString &setId, co
             item.glyph = kanaText(slot.hira0, slot.hira1);
             item.glyphAlt = kanaText(slot.kata0, slot.kata1);
             item.reading = QString::fromLatin1(slot.reading);
+            item.audio = kanaClip(item.reading);
             item.id = itemId(lang, item.reading);
             item.payload = QJsonObject{
                 {QStringLiteral("glyph"), item.glyph},
                 {QStringLiteral("glyphAlt"), item.glyphAlt},
                 {QStringLiteral("reading"), item.reading},
-                {QStringLiteral("audio"), QString()},
+                {QStringLiteral("audio"), item.audio},
                 {QStringLiteral("pairLeftLabel"), pairLeftLabel},
                 {QStringLiteral("pairLeft"), item.glyph},
                 {QStringLiteral("pairRightLabel"), pairRightLabel},
@@ -788,6 +876,9 @@ bool StudyStore::seedKanaChart(const QString &layoutId, const QString &setId, co
             return false;
         if (!insertFace(item.id, QStringLiteral("reading-to-glyph"),
                         promptText(item.reading), answerText(item.glyph, {item.glyph, item.glyphAlt})))
+            return false;
+        if (!insertFace(item.id, QStringLiteral("listen"),
+                        promptAudio(item.audio), answerText(item.glyph, {item.glyph, item.glyphAlt})))
             return false;
     }
 
@@ -1719,6 +1810,186 @@ QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
     for (int i = 0; i < count; ++i)
         ids.append(candidates.at(i).id);
     return ids;
+}
+
+QVariantMap StudyStore::progress(const QString &lang) const
+{
+    struct SetSpec {
+        QString id;
+        QString label;
+    };
+    QVector<SetSpec> specs;
+    if (lang == QLatin1String("ko")) {
+        specs.append({QStringLiteral("ko-syllable"), QString::fromUtf16(u"\u8c1a\u6587")});
+        specs.append({QStringLiteral("ko-vocab"), QString::fromUtf16(u"\u8bcd\u6c47")});
+    } else {
+        specs.append({QStringLiteral("ja-seion"), QString::fromUtf16(u"\u6e05\u97f3")});
+        specs.append({QStringLiteral("ja-dakuon"), QString::fromUtf16(u"\u6fc1\u97f3")});
+        specs.append({QStringLiteral("ja-handakuon"), QString::fromUtf16(u"\u534a\u6fc1\u97f3")});
+        specs.append({QStringLiteral("ja-youon"), QString::fromUtf16(u"\u62d7\u97f3")});
+        specs.append({QStringLiteral("ja-vocab"), QString::fromUtf16(u"\u8bcd\u6c47")});
+    }
+
+    QHash<QString, QVariantMap> bySet;
+    for (const SetSpec &spec : specs) {
+        bySet.insert(spec.id, QVariantMap{
+            {QStringLiteral("id"), spec.id},
+            {QStringLiteral("label"), spec.label},
+            {QStringLiteral("total"), 0},
+            {QStringLiteral("mastered"), 0},
+            {QStringLiteral("fuzzy"), 0},
+            {QStringLiteral("unlearned"), 0},
+        });
+    }
+
+    if (m_db.isOpen()) {
+        QSqlQuery counts(m_db);
+        counts.prepare(QStringLiteral(
+            "SELECT i.set_id, IFNULL(m.status, 'unlearned'), COUNT(*) "
+            "FROM items i LEFT JOIN memory m ON m.item_id = i.id "
+            "WHERE i.lang = ? GROUP BY i.set_id, IFNULL(m.status, 'unlearned')"));
+        counts.addBindValue(lang);
+        if (counts.exec()) {
+            while (counts.next()) {
+                const QString setId = counts.value(0).toString();
+                if (!bySet.contains(setId))
+                    continue;
+                QVariantMap row = bySet.value(setId);
+                const QString status = counts.value(1).toString();
+                const int count = counts.value(2).toInt();
+                row.insert(QStringLiteral("total"), row.value(QStringLiteral("total")).toInt() + count);
+                if (status == QLatin1String("mastered"))
+                    row.insert(QStringLiteral("mastered"), count);
+                else if (status == QLatin1String("fuzzy"))
+                    row.insert(QStringLiteral("fuzzy"), count);
+                else
+                    row.insert(QStringLiteral("unlearned"), row.value(QStringLiteral("unlearned")).toInt() + count);
+                bySet.insert(setId, row);
+            }
+        }
+    }
+
+    QVariantList sets;
+    for (const SetSpec &spec : specs)
+        sets.append(bySet.value(spec.id));
+
+    struct Event {
+        QString itemId;
+        QDate day;
+        bool right = false;
+    };
+    QVector<Event> events;
+    if (m_db.isOpen()) {
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral(
+            "SELECT e.item_id, e.at, e.result FROM review_events e "
+            "JOIN items i ON i.id = e.item_id WHERE i.lang = ? ORDER BY e.id ASC"));
+        query.addBindValue(lang);
+        if (query.exec()) {
+            while (query.next()) {
+                const QDateTime at = QDateTime::fromString(query.value(1).toString(), Qt::ISODateWithMs);
+                if (!at.isValid())
+                    continue;
+                Event event;
+                event.itemId = query.value(0).toString();
+                event.day = at.toLocalTime().date();
+                event.right = query.value(2).toString() == QLatin1String("right");
+                events.append(event);
+            }
+        }
+    }
+
+    const QDate today = QDate::currentDate();
+    QHash<QDate, QPair<int, int>> byDay;
+    QSet<QDate> activeDays;
+    QHash<QString, bool> latestRight;
+    int reviews = 0;
+    int right = 0;
+    for (const Event &event : events) {
+        ++reviews;
+        if (event.right)
+            ++right;
+        QPair<int, int> dayCount = byDay.value(event.day);
+        dayCount.first += 1;
+        if (event.right)
+            dayCount.second += 1;
+        byDay.insert(event.day, dayCount);
+        activeDays.insert(event.day);
+        latestRight.insert(event.itemId, event.right);
+    }
+
+    int held = 0;
+    for (auto it = latestRight.cbegin(); it != latestRight.cend(); ++it) {
+        if (it.value())
+            ++held;
+    }
+
+    int streak = 0;
+    QDate cursor = today;
+    if (!activeDays.contains(cursor))
+        cursor = cursor.addDays(-1);
+    while (activeDays.contains(cursor)) {
+        ++streak;
+        cursor = cursor.addDays(-1);
+    }
+
+    QVariantList curve;
+    for (int offset = 13; offset >= 0; --offset) {
+        const QDate day = today.addDays(-offset);
+        const QPair<int, int> dayCount = byDay.value(day);
+        curve.append(QVariantMap{
+            {QStringLiteral("label"), QString::number(day.month()) + QLatin1Char('/') + QString::number(day.day())},
+            {QStringLiteral("reviews"), dayCount.first},
+            {QStringLiteral("right"), dayCount.second},
+        });
+    }
+
+    QStringList missIds;
+    QSet<QString> seenMiss;
+    for (int index = events.size() - 1; index >= 0 && missIds.size() < 8; --index) {
+        const Event &event = events.at(index);
+        if (seenMiss.contains(event.itemId))
+            continue;
+        seenMiss.insert(event.itemId);
+        if (!event.right)
+            missIds.append(event.itemId);
+    }
+
+    QHash<QString, QString> setLabels;
+    for (const SetSpec &spec : specs)
+        setLabels.insert(spec.id, spec.label);
+
+    QVariantList misses;
+    for (const QString &id : missIds) {
+        QSqlQuery item(m_db);
+        item.prepare(QStringLiteral("SELECT set_id, payload FROM items WHERE id = ?"));
+        item.addBindValue(id);
+        if (!item.exec() || !item.next())
+            continue;
+        const QJsonObject payload = QJsonDocument::fromJson(item.value(1).toString().toUtf8()).object();
+        const QString setId = item.value(0).toString();
+        misses.append(QVariantMap{
+            {QStringLiteral("id"), id},
+            {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
+            {QStringLiteral("reading"), payload.value(QStringLiteral("reading")).toString()},
+            {QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString()},
+            {QStringLiteral("setLabel"), setLabels.value(setId)},
+        });
+    }
+
+    const QPair<int, int> todayCount = byDay.value(today);
+    return QVariantMap{
+        {QStringLiteral("sets"), sets},
+        {QStringLiteral("reviews"), reviews},
+        {QStringLiteral("right"), right},
+        {QStringLiteral("today"), todayCount.first},
+        {QStringLiteral("todayRight"), todayCount.second},
+        {QStringLiteral("reviewed"), latestRight.size()},
+        {QStringLiteral("held"), held},
+        {QStringLiteral("streak"), streak},
+        {QStringLiteral("curve"), curve},
+        {QStringLiteral("misses"), misses},
+    };
 }
 
 void StudyStore::rate(const QString &itemId, bool correct, const QString &activity, const QString &prompt)

@@ -78,6 +78,11 @@ CMakeLists.txt.user*
 *.dll
 *.exe
 
+# SQLite sidecars. study.sqlite itself is kept.
+/study.sqlite-wal
+/study.sqlite-shm
+/study.sqlite-journal
+
 # Directories with generated files
 .moc/
 .obj/

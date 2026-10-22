@@ -15,6 +15,7 @@ Item {
     property string kanaChart: "seion"
     property string flashQueue: "today"
     property string flashFront: "hira"
+    property string progressView: "overview"
 
     readonly property string studySet: {
         if (language === "ko")
@@ -83,10 +84,12 @@ Item {
         reviewCount: root.reviewCount
         queueMode: root.flashQueue
         frontScript: root.flashFront
+        progressView: root.progressView
         onOpenStudy: root.showStudy(view)
         onPickFilter: root.filter = id
         onPickQueue: root.flashQueue = id
         onPickFront: root.flashFront = id
+        onPickProgress: root.progressView = id
     }
 
     AppTopBar {
@@ -151,15 +154,14 @@ Item {
             frontScript: root.flashFront
             onExit: root.showStudy("overview")
         }
+        ProgressPage {
+            language: root.language
+            view: root.progressView
+        }
         ModulePlaceholder {
             title: "游戏"
             kana: "遊"
             note: "假名打地鼠、听音辨字等小游戏将在第二期加入。"
-        }
-        ModulePlaceholder {
-            title: "进度"
-            kana: "進"
-            note: "学习曲线、记忆保持率与弱项热力图将在第二期加入。"
         }
     }
 

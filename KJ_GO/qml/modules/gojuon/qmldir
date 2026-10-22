@@ -4,4 +4,5 @@ KanaOverviewPage 1.0 KanaOverviewPage.qml
 KanaDetailPage 1.0 KanaDetailPage.qml
 FlashcardPage 1.0 FlashcardPage.qml
 VocabPage 1.0 VocabPage.qml
+ProgressPage 1.0 ProgressPage.qml
 WeakQueuePage 1.0 WeakQueuePage.qml

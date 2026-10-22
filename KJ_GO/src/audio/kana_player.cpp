@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QMediaPlayer>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QTimer>
 #include <QUrl>
 #include <QDebug>
@@ -66,13 +67,25 @@ QString KanaPlayer::materialize(const QString &romaji)
     if (QFileInfo::exists(dest) && QFileInfo(dest).size() > 500)
         return dest;
 
-    QFile in(QStringLiteral(":/qt/qml/KJ_GO/audio/seion/%1.mp3").arg(romaji));
-    if (!in.open(QIODevice::ReadOnly))
+    const QStringList folders = {
+        QStringLiteral("seion"),
+        QStringLiteral("dakuon"),
+        QStringLiteral("handakuon"),
+        QStringLiteral("yoon"),
+    };
+    QByteArray bytes;
+    for (const QString &folder : folders) {
+        QFile in(QStringLiteral(":/qt/qml/KJ_GO/audio/%1/%2.mp3").arg(folder, romaji));
+        if (!in.open(QIODevice::ReadOnly))
+            continue;
+        bytes = in.readAll();
+        break;
+    }
+    if (bytes.size() <= 500)
         return {};
     QFile out(dest);
     if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return {};
-    const QByteArray bytes = in.readAll();
     if (out.write(bytes) != bytes.size())
         return {};
     out.close();

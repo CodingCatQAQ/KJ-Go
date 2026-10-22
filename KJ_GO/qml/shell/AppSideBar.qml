@@ -14,10 +14,12 @@ Item {
     property int reviewCount: 0
     property string queueMode: "today"
     property string frontScript: "hira"
+    property string progressView: "overview"
     signal openStudy(string view)
     signal pickFilter(string id)
     signal pickQueue(string id)
     signal pickFront(string id)
+    signal pickProgress(string id)
 
     readonly property bool korean: language === "ko"
     function chartTotal(setId) {
@@ -325,13 +327,37 @@ Item {
         }
 
         ColumnLayout {
-            visible: root.module === 2 || root.module === 3
+            visible: root.module === 2
             spacing: 2
             Layout.fillWidth: true
-            SectionLabel { text: root.module === 2 ? "游戏" : "统计" }
-            NavItem { Layout.fillWidth: true; label: root.module === 2 ? "假名打地鼠" : "总览"; soon: true }
-            NavItem { Layout.fillWidth: true; label: root.module === 2 ? "听音辨字" : "记忆曲线"; soon: true }
-            NavItem { Layout.fillWidth: true; label: root.module === 2 ? "限时连线" : "弱项热力图"; soon: true }
+            SectionLabel { text: "统计" }
+            NavItem {
+                Layout.fillWidth: true
+                label: "总览"
+                active: root.progressView === "overview"
+                onPicked: root.pickProgress("overview")
+            }
+            NavItem {
+                Layout.fillWidth: true
+                label: "记忆曲线"
+                active: root.progressView === "curve"
+                onPicked: root.pickProgress("curve")
+            }
+            NavItem {
+                Layout.fillWidth: true
+                label: "弱项热力图"
+                active: root.progressView === "heat"
+                onPicked: root.pickProgress("heat")
+            }
+        }
+        ColumnLayout {
+            visible: root.module === 3
+            spacing: 2
+            Layout.fillWidth: true
+            SectionLabel { text: "游戏" }
+            NavItem { Layout.fillWidth: true; label: "假名打地鼠"; soon: true }
+            NavItem { Layout.fillWidth: true; label: "听音辨字"; soon: true }
+            NavItem { Layout.fillWidth: true; label: "限时连线"; soon: true }
         }
 
         Item { Layout.fillHeight: true }

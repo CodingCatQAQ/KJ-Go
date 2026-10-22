@@ -22,6 +22,7 @@ qt_add_executable(appKJ_GO
 )
 
 target_include_directories(appKJ_GO PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(appKJ_GO PRIVATE KJ_GO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
 set_source_files_properties(qml/theme/Theme.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
@@ -55,6 +56,7 @@ qt_add_qml_module(appKJ_GO
         qml/modules/gojuon/KanaDetailPage.qml
         qml/modules/gojuon/FlashcardPage.qml
         qml/modules/gojuon/VocabPage.qml
+        qml/modules/gojuon/ProgressPage.qml
         qml/modules/gojuon/WeakQueuePage.qml
     RESOURCES
         qml/theme/qmldir
@@ -76,6 +78,9 @@ set_target_properties(appKJ_GO PROPERTIES
 
 file(GLOB KANA_AUDIO_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/audio/seion/*.mp3"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/dakuon/*.mp3"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/handakuon/*.mp3"
+    "${CMAKE_CURRENT_SOURCE_DIR}/audio/yoon/*.mp3"
 )
 
 qt_add_resources(appKJ_GO "kana_audio"
