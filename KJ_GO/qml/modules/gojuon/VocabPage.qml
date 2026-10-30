@@ -10,7 +10,7 @@ Item {
     property string statusFilter: "all"
     property string selectedId: ""
     property string formId: ""
-    property string formPos: ""
+    property var formPos: ["其他"]
     property string posHintLabel: ""
     property string formError: ""
     property string deleteError: ""
@@ -80,19 +80,42 @@ Item {
         formError = ""
         posHintLabel = ""
         wordInput.text = card && card.glyph ? card.glyph : ""
-        var written = card && card.pos ? card.pos : ""
-        formPos = PosCatalog.find(written) ? written : "其他"
+        formPos = PosCatalog.labelsOf(card && card.pos ? card.pos : "")
         glossInput.text = card && card.gloss ? card.gloss : ""
         exampleInput.text = card && card.example ? card.example : ""
         mnemonicInput.text = card && card.mnemonic ? card.mnemonic : ""
     }
 
     function pickPos(label) {
-        formPos = label
+        if (label === "其他") {
+            formPos = ["其他"]
+            return
+        }
+        var current = PosCatalog.labelsOf(formPos)
+        var next = []
+        var found = false
+        for (var i = 0; i < current.length; ++i) {
+            if (current[i] === label)
+                found = true
+            else if (current[i] !== "其他")
+                next.push(current[i])
+        }
+        if (!found)
+            next.push(label)
+        formPos = PosCatalog.labelsOf(next)
+    }
+
+    function posChosen(label) {
+        var labels = formPos ? formPos : []
+        for (var i = 0; i < labels.length; ++i) {
+            if (labels[i] === label)
+                return true
+        }
+        return false
     }
 
     function shownPos(written) {
-        return PosCatalog.find(written) ? written : "其他"
+        return PosCatalog.textOf(written)
     }
 
     function posHintText(label) {
@@ -117,7 +140,7 @@ Item {
     function formFields() {
         return {
             glyph: wordInput.text,
-            pos: root.shownPos(formPos),
+            pos: PosCatalog.labelsOf(formPos),
             gloss: glossInput.text,
             example: exampleInput.text,
             mnemonic: mnemonicInput.text
@@ -533,12 +556,16 @@ Item {
                     Row {
                         spacing: 16
                         Text {
+                            id: posLabel
+                            width: Math.min(implicitWidth, detail.width - statusLabel.implicitWidth - 16)
+                            wrapMode: Text.WordWrap
                             text: root.entry && root.entry.id ? root.shownPos(root.entry.pos) : ""
                             color: Theme.textMuted
                             font.family: Theme.fontBody
                             font.pixelSize: 13
                         }
                         Text {
+                            id: statusLabel
                             text: root.statusText(root.entry ? root.entry.status : "")
                             color: root.statusColor(root.entry ? root.entry.status : "")
                             font.family: Theme.fontBody
@@ -633,7 +660,7 @@ Item {
                                     PosChoice {
                                         id: choice
                                         kindLabel: modelData.label
-                                        chosen: root.formPos === modelData.label
+                                        chosen: root.posChosen(modelData.label)
                                         onPicked: root.pickPos(modelData.label)
                                     }
                                 }
@@ -642,7 +669,12 @@ Item {
                         Text {
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: root.posHintText(root.posHintLabel || root.formPos)
+                            text: {
+                                var label = root.posHintLabel
+                                if (!label && root.formPos && root.formPos.length === 1)
+                                    label = root.formPos[0]
+                                return root.posHintText(label)
+                            }
                             color: Theme.textMuted
                             font.family: Theme.fontBody
                             font.pixelSize: 13

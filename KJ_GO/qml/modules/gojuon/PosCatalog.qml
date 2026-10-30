@@ -63,6 +63,35 @@ QtObject {
         return null
     }
 
+    function labelsOf(written) {
+        var raw = []
+        if (written === undefined || written === null || written === "")
+            raw = []
+        else if (typeof written === "string")
+            raw = [written]
+        else
+            raw = written
+        var ordered = []
+        for (var i = 0; i < kinds.length; ++i) {
+            var label = kinds[i].label
+            if (label === "其他")
+                continue
+            for (var j = 0; j < raw.length; ++j) {
+                if (raw[j] === label) {
+                    ordered.push(label)
+                    break
+                }
+            }
+        }
+        if (ordered.length === 0)
+            ordered.push("其他")
+        return ordered
+    }
+
+    function textOf(written) {
+        return labelsOf(written).join(" · ")
+    }
+
     function cover(kind, language) {
         if (!kind)
             return ""

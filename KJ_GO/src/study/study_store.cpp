@@ -135,28 +135,79 @@ QString fieldText(const QVariantMap &fields, const char *key)
     return fields.value(QLatin1String(key)).toString().trimmed();
 }
 
+const QStringList kVocabPos = {
+    QStringLiteral("体词"),
+    QStringLiteral("动词"),
+    QStringLiteral("形容词"),
+    QStringLiteral("副词"),
+    QStringLiteral("助词"),
+    QStringLiteral("冠形词"),
+    QStringLiteral("语尾/助动词"),
+    QStringLiteral("其他"),
+};
+
 QString vocabPos(const QString &text)
 {
-    const QStringList known = {
-        QStringLiteral("体词"),
-        QStringLiteral("动词"),
-        QStringLiteral("形容词"),
-        QStringLiteral("副词"),
-        QStringLiteral("助词"),
-        QStringLiteral("冠形词"),
-        QStringLiteral("语尾/助动词"),
-        QStringLiteral("其他"),
-    };
     const QString trimmed = text.trimmed();
-    return known.contains(trimmed) ? trimmed : QStringLiteral("其他");
+    return kVocabPos.contains(trimmed) ? trimmed : QStringLiteral("其他");
+}
+
+QStringList vocabPosLabels(const QVariant &value)
+{
+    QStringList incoming;
+    const int type = value.typeId();
+    if (type == QMetaType::QVariantList || type == QMetaType::QStringList) {
+        const QVariantList list = value.toList();
+        for (const QVariant &item : list)
+            incoming.append(item.toString());
+    } else {
+        incoming.append(value.toString());
+    }
+
+    QStringList kept;
+    for (const QString &label : kVocabPos) {
+        if (label == QStringLiteral("其他"))
+            continue;
+        for (const QString &raw : incoming) {
+            if (raw.trimmed() == label) {
+                kept.append(label);
+                break;
+            }
+        }
+    }
+    if (kept.isEmpty())
+        kept.append(QStringLiteral("其他"));
+    return kept;
+}
+
+QJsonArray vocabPosArray(const QVariant &value)
+{
+    QJsonArray array;
+    for (const QString &label : vocabPosLabels(value))
+        array.append(label);
+    return array;
+}
+
+QVariantList vocabPosList(const QJsonValue &value)
+{
+    const QVariant source = value.isArray()
+        ? QVariant(value.toArray().toVariantList())
+        : QVariant(value.toString());
+    QVariantList list;
+    for (const QString &label : vocabPosLabels(source))
+        list.append(label);
+    return list;
 }
 
 void writeVocabText(QJsonObject &payload, const QString &glyph, const QVariantMap &fields)
 {
     payload.insert(QStringLiteral("glyph"), glyph);
-    for (const char *key : kVocabTextKeys)
+    for (const char *key : kVocabTextKeys) {
+        if (qstrcmp(key, "pos") == 0)
+            continue;
         payload.insert(QLatin1String(key), fieldText(fields, key));
-    payload.insert(QStringLiteral("pos"), vocabPos(payload.value(QStringLiteral("pos")).toString()));
+    }
+    payload.insert(QStringLiteral("pos"), vocabPosArray(fields.value(QStringLiteral("pos"))));
     for (const char *key : kVocabDroppedKeys)
         payload.remove(QLatin1String(key));
 }
@@ -310,7 +361,7 @@ bool StudyStore::upgradeMemory()
         return false;
     }
     const int schema = version.value(0).toInt();
-    if (schema >= 6)
+    if (schema >= 7)
         return true;
 
     if (!m_db.transaction())
@@ -390,9 +441,38 @@ bool StudyStore::upgradeMemory()
     }
     if (ok && schema < 6)
         ok = attachKanaAudio();
+    if (ok && schema < 7) {
+        QSqlQuery vocab(m_db);
+        ok = vocab.exec(QStringLiteral("SELECT id, payload FROM items WHERE kind = 'vocab'"));
+        if (!ok)
+            m_error = vocab.lastError().text();
+        QVector<QPair<QString, QString>> updates;
+        while (ok && vocab.next()) {
+            QJsonObject payload = QJsonDocument::fromJson(vocab.value(1).toString().toUtf8()).object();
+            const QJsonValue current = payload.value(QStringLiteral("pos"));
+            const QJsonArray next = vocabPosArray(current.isArray()
+                    ? QVariant(current.toArray().toVariantList())
+                    : QVariant(current.toString()));
+            if (current.isArray() && current.toArray() == next)
+                continue;
+            payload.insert(QStringLiteral("pos"), next);
+            updates.append({vocab.value(0).toString(), jsonText(payload)});
+        }
+        for (const auto &row : updates) {
+            QSqlQuery update(m_db);
+            update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ?"));
+            update.addBindValue(row.second);
+            update.addBindValue(row.first);
+            if (update.exec())
+                continue;
+            m_error = update.lastError().text();
+            ok = false;
+            break;
+        }
+    }
 
     QSqlQuery bump(m_db);
-    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '6' WHERE key = 'schema'"));
+    bump.prepare(QStringLiteral("UPDATE schema_meta SET value = '7' WHERE key = 'schema'"));
     if (!ok || !bump.exec() || !m_db.commit()) {
         m_db.rollback();
         if (m_error.isEmpty()) {
@@ -404,8 +484,10 @@ bool StudyStore::upgradeMemory()
                 m_error = QStringLiteral("词汇字段没有清掉");
             else if (schema < 5)
                 m_error = QStringLiteral("词性没有归类");
-            else
+            else if (schema < 6)
                 m_error = QStringLiteral("浊音发音没有写上");
+            else
+                m_error = QStringLiteral("词性没有改成多项");
         }
         return false;
     }
@@ -1346,7 +1428,7 @@ QVariantMap StudyStore::item(const QString &itemId) const
         lastResult = latest.value(0).toString();
 
     result.insert(QStringLiteral("group"), payload.value(QStringLiteral("group")).toString());
-    result.insert(QStringLiteral("pos"), payload.value(QStringLiteral("pos")).toString());
+    result.insert(QStringLiteral("pos"), vocabPosList(payload.value(QStringLiteral("pos"))));
     result.insert(QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString());
     result.insert(QStringLiteral("example"), payload.value(QStringLiteral("example")).toString());
     result.insert(QStringLiteral("exampleGloss"), payload.value(QStringLiteral("exampleGloss")).toString());
@@ -1385,7 +1467,7 @@ QVariantList StudyStore::items(const QString &setId) const
             {QStringLiteral("id"), query.value(0).toString()},
             {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
             {QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString()},
-            {QStringLiteral("pos"), payload.value(QStringLiteral("pos")).toString()},
+            {QStringLiteral("pos"), vocabPosList(payload.value(QStringLiteral("pos")))},
             {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
         }});
     }

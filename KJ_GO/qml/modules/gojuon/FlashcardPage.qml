@@ -101,7 +101,7 @@ Item {
         if (entry.kind === "vocab") {
             if (showingGloss(entry))
                 return "释义 · FRONT"
-            return (entry.pos ? entry.pos : "单词") + " · FRONT"
+            return PosCatalog.textOf(entry.pos) + " · FRONT"
         }
         var label = showingKata(entry) ? entry.pairRightLabel : entry.pairLeftLabel
         return (label ? label : "") + " · FRONT"
@@ -481,7 +481,8 @@ Item {
                             Text {
                                 width: parent.width
                                 horizontalAlignment: Text.AlignHCenter
-                                text: !root.entry ? "" : (PosCatalog.find(root.entry.pos) ? root.entry.pos : "其他")
+                                wrapMode: Text.WordWrap
+                                text: !root.entry ? "" : PosCatalog.textOf(root.entry.pos)
                                 color: Theme.textMuted
                                 font.family: Theme.fontBody
                                 font.pixelSize: 11
