@@ -19,6 +19,16 @@ qt_add_executable(appKJ_GO
     src/audio/kana_player.cpp
     src/study/study_store.h
     src/study/study_store.cpp
+    src/game/domain/memory_board.h
+    src/game/domain/memory_board.cpp
+    src/game/application/vocab_dealer.h
+    src/game/application/vocab_dealer.cpp
+    src/game/infrastructure/study_vocab_catalog.h
+    src/game/infrastructure/study_vocab_catalog.cpp
+    src/game/presentation/memory_card_model.h
+    src/game/presentation/memory_card_model.cpp
+    src/game/presentation/memory_match_game.h
+    src/game/presentation/memory_match_game.cpp
 )
 
 target_include_directories(appKJ_GO PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -58,11 +68,19 @@ qt_add_qml_module(appKJ_GO
         qml/modules/gojuon/VocabPage.qml
         qml/modules/gojuon/ProgressPage.qml
         qml/modules/gojuon/WeakQueuePage.qml
+        qml/modules/game/GamePage.qml
+        qml/modules/game/MemoryMatchPage.qml
+        qml/modules/game/MemorySetup.qml
+        qml/modules/game/MemoryTierButton.qml
+        qml/modules/game/MemoryBoard.qml
+        qml/modules/game/MemoryCard.qml
+        qml/modules/game/MemoryResult.qml
     RESOURCES
         qml/theme/qmldir
         qml/shell/qmldir
         qml/components/qmldir
         qml/modules/gojuon/qmldir
+        qml/modules/game/qmldir
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.

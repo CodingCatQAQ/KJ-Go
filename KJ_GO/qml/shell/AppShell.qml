@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme"
 import "../modules/gojuon"
+import "../modules/game"
 
 Item {
     id: root
@@ -16,6 +17,7 @@ Item {
     property string flashQueue: "today"
     property string flashFront: "hira"
     property string progressView: "overview"
+    property string gameView: "memory"
 
     readonly property string studySet: {
         if (language === "ko")
@@ -85,7 +87,9 @@ Item {
         queueMode: root.flashQueue
         frontScript: root.flashFront
         progressView: root.progressView
+        gameView: root.gameView
         onOpenStudy: root.showStudy(view)
+        onPickGame: root.gameView = id
         onPickFilter: root.filter = id
         onPickQueue: root.flashQueue = id
         onPickFront: root.flashFront = id
@@ -158,10 +162,10 @@ Item {
             language: root.language
             view: root.progressView
         }
-        ModulePlaceholder {
-            title: "游戏"
-            kana: "遊"
-            note: "假名打地鼠、听音辨字等小游戏将在第二期加入。"
+        GamePage {
+            view: root.gameView
+            setId: root.vocabSet
+            onOpenVocab: root.showStudy("vocab")
         }
     }
 

@@ -1,0 +1,7 @@
+GamePage 1.0 GamePage.qml
+MemoryMatchPage 1.0 MemoryMatchPage.qml
+MemorySetup 1.0 MemorySetup.qml
+MemoryTierButton 1.0 MemoryTierButton.qml
+MemoryBoard 1.0 MemoryBoard.qml
+MemoryCard 1.0 MemoryCard.qml
+MemoryResult 1.0 MemoryResult.qml

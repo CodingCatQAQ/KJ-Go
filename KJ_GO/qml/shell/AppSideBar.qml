@@ -15,7 +15,9 @@ Item {
     property string queueMode: "today"
     property string frontScript: "hira"
     property string progressView: "overview"
+    property string gameView: "memory"
     signal openStudy(string view)
+    signal pickGame(string id)
     signal pickFilter(string id)
     signal pickQueue(string id)
     signal pickFront(string id)
@@ -355,6 +357,12 @@ Item {
             spacing: 2
             Layout.fillWidth: true
             SectionLabel { text: "游戏" }
+            NavItem {
+                Layout.fillWidth: true
+                label: "记忆配对"
+                active: root.gameView === "memory"
+                onPicked: root.pickGame("memory")
+            }
             NavItem { Layout.fillWidth: true; label: "假名打地鼠"; soon: true }
             NavItem { Layout.fillWidth: true; label: "听音辨字"; soon: true }
             NavItem { Layout.fillWidth: true; label: "限时连线"; soon: true }
