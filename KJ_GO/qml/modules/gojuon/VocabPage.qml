@@ -148,17 +148,19 @@ Item {
     }
 
     function saveForm() {
-        if (!wordInput.text.trim()) {
+        var word = wordInput.text.trim()
+        var gloss = glossInput.text.trim()
+        if (!word) {
             formError = "先写下这个词"
             wordInput.input.forceActiveFocus()
             return
         }
-        if (!glossInput.text.trim()) {
+        if (!gloss) {
             formError = "中文意思不能空着"
             glossInput.input.forceActiveFocus()
             return
         }
-        var issue = studyStore.scriptIssue(language, wordInput.text)
+        var issue = studyStore.scriptIssue(language, word)
         if (issue) {
             formError = issue
             wordInput.input.forceActiveFocus()
@@ -166,7 +168,7 @@ Item {
         }
         if (formId) {
             if (!studyStore.updateVocab(formId, formFields())) {
-                formError = "没有保存"
+                formError = studyStore.lastError() || "没有保存"
                 return
             }
             editorPopup.close()
@@ -174,7 +176,7 @@ Item {
         }
         var id = studyStore.addVocab(setId, language, formFields())
         if (!id) {
-            formError = "没有写入词库"
+            formError = studyStore.lastError() || "没有写入词库"
             return
         }
         statusFilter = "all"
@@ -244,7 +246,10 @@ Item {
             font.pixelSize: 14
             font.bold: chip.chosen
         }
-        TapHandler { onTapped: chip.picked() }
+        TapHandler {
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped: chip.picked()
+        }
     }
 
     component PosChoice: Rectangle {
@@ -276,7 +281,10 @@ Item {
                     root.posHintLabel = ""
             }
         }
-        TapHandler { onTapped: posChip.picked() }
+        TapHandler {
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped: posChip.picked()
+        }
     }
 
     component QuietButton: Rectangle {
@@ -301,7 +309,10 @@ Item {
             font.bold: true
         }
         HoverHandler { id: btnHover }
-        TapHandler { onTapped: btn.picked() }
+        TapHandler {
+            gesturePolicy: TapHandler.ReleaseWithinBounds
+            onTapped: btn.picked()
+        }
     }
 
     component FormLine: Column {
@@ -606,10 +617,15 @@ Item {
         }
         contentItem: Item {
             implicitWidth: 440
-            implicitHeight: Math.min(formColumn.implicitHeight + 56, 680)
+            implicitHeight: Math.min(formColumn.implicitHeight + footer.implicitHeight + 40, 680)
             Flickable {
-                anchors.fill: parent
-                anchors.margins: 28
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.bottom: footer.top
+                anchors.leftMargin: 28
+                anchors.rightMargin: 28
+                anchors.topMargin: 28
                 contentWidth: width
                 contentHeight: formColumn.implicitHeight
                 clip: true
@@ -700,19 +716,30 @@ Item {
                         placeholder: "可记录该词汇的特殊之处。"
                         boxHeight: 84
                     }
-                    Text {
-                        width: parent.width
-                        visible: root.formError !== ""
-                        text: root.formError
-                        color: Theme.accent
-                        font.family: Theme.fontBody
-                        font.pixelSize: 13
-                    }
-                    Row {
-                        spacing: 8
-                        QuietButton { label: "取消"; onPicked: editorPopup.close() }
-                        QuietButton { label: "保存"; filled: true; onPicked: root.saveForm() }
-                    }
+                }
+            }
+            Column {
+                id: footer
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.leftMargin: 28
+                anchors.rightMargin: 28
+                anchors.bottomMargin: 28
+                spacing: 12
+                Text {
+                    width: parent.width
+                    visible: root.formError !== ""
+                    wrapMode: Text.WordWrap
+                    text: root.formError
+                    color: Theme.accent
+                    font.family: Theme.fontBody
+                    font.pixelSize: 13
+                }
+                Row {
+                    spacing: 8
+                    QuietButton { label: "取消"; onPicked: editorPopup.close() }
+                    QuietButton { label: "保存"; filled: true; onPicked: root.saveForm() }
                 }
             }
         }

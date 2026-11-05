@@ -12,6 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSet>
+#include <QSettings>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStandardPaths>
@@ -217,8 +218,52 @@ void writeVocabText(QJsonObject &payload, const QString &glyph, const QVariantMa
 StudyStore::StudyStore(QObject *parent)
     : QObject(parent)
 {
+    QSettings settings;
+    const bool savedLanguage = settings.contains(QStringLiteral("language"));
+    if (savedLanguage) {
+        const QString saved = settings.value(QStringLiteral("language")).toString();
+        if (saved == QLatin1String("ko") || saved == QLatin1String("ja"))
+            m_language = saved;
+    }
     if (!openDatabase() || !migrate() || !seedIfEmpty() || !ensureCharts())
         return;
+    if (savedLanguage)
+        return;
+
+    int korean = 0;
+    int japanese = 0;
+    {
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral("SELECT COUNT(*) FROM items WHERE set_id = 'ko-vocab' AND kind = 'vocab'"));
+        if (query.exec() && query.next())
+            korean = query.value(0).toInt();
+    }
+    {
+        QSqlQuery query(m_db);
+        query.prepare(QStringLiteral("SELECT COUNT(*) FROM items WHERE set_id = 'ja-vocab' AND kind = 'vocab'"));
+        if (query.exec() && query.next())
+            japanese = query.value(0).toInt();
+    }
+    if (korean > 0 && japanese == 0)
+        m_language = QStringLiteral("ko");
+    else if (japanese > 0 && korean == 0)
+        m_language = QStringLiteral("ja");
+}
+
+QString StudyStore::language() const
+{
+    return m_language;
+}
+
+void StudyStore::setLanguage(const QString &language)
+{
+    if (language != QLatin1String("ja") && language != QLatin1String("ko"))
+        return;
+    if (m_language == language)
+        return;
+    m_language = language;
+    QSettings().setValue(QStringLiteral("language"), m_language);
+    emit languageChanged();
 }
 
 int StudyStore::revision() const
@@ -227,6 +272,17 @@ int StudyStore::revision() const
 }
 
 QString StudyStore::error() const
+{
+    return m_error;
+}
+
+void StudyStore::setError(const QString &message)
+{
+    m_error = message;
+    emit errorChanged();
+}
+
+QString StudyStore::lastError() const
 {
     return m_error;
 }
@@ -1523,22 +1579,27 @@ void StudyStore::setFields(const QString &itemId, const QVariantMap &fields)
 
 bool StudyStore::upsertFace(const QString &itemId, const QString &promptKind, const QVariantMap &prompt, const QVariantMap &answer)
 {
-    QSqlQuery existing(m_db);
-    existing.prepare(QStringLiteral("SELECT id FROM faces WHERE item_id = ? AND prompt_kind = ?"));
-    existing.addBindValue(itemId);
-    existing.addBindValue(promptKind);
-    if (!existing.exec()) {
-        m_error = existing.lastError().text();
-        return false;
+    QString faceId;
+    {
+        QSqlQuery existing(m_db);
+        existing.prepare(QStringLiteral("SELECT id FROM faces WHERE item_id = ? AND prompt_kind = ?"));
+        existing.addBindValue(itemId);
+        existing.addBindValue(promptKind);
+        if (!existing.exec()) {
+            m_error = existing.lastError().text();
+            return false;
+        }
+        if (existing.next())
+            faceId = existing.value(0).toString();
     }
-    if (!existing.next())
+    if (faceId.isEmpty())
         return insertFace(itemId, promptKind, prompt, answer);
 
     QSqlQuery update(m_db);
     update.prepare(QStringLiteral("UPDATE faces SET prompt = ?, answer = ? WHERE id = ?"));
     update.addBindValue(jsonText(objectFrom(prompt)));
     update.addBindValue(jsonText(objectFrom(answer)));
-    update.addBindValue(existing.value(0).toString());
+    update.addBindValue(faceId);
     if (update.exec())
         return true;
     m_error = update.lastError().text();
@@ -1602,41 +1663,45 @@ QString StudyStore::scriptIssue(const QString &lang, const QString &word) const
 
 QString StudyStore::addVocab(const QString &setId, const QString &lang, const QVariantMap &fields)
 {
-    if (!m_db.isOpen())
+    if (!m_db.isOpen()) {
+        setError(QStringLiteral("学习数据库没有打开"));
         return {};
+    }
     const bool japanese = setId == QLatin1String("ja-vocab") && lang == QLatin1String("ja");
     const bool korean = setId == QLatin1String("ko-vocab") && lang == QLatin1String("ko");
     if (!japanese && !korean) {
-        m_error = QStringLiteral("这个词库不能添加");
+        setError(QStringLiteral("这个词库不能添加"));
         return {};
     }
 
     const QString glyph = fieldText(fields, "glyph");
     if (glyph.isEmpty()) {
-        m_error = QStringLiteral("单词不能是空的");
+        setError(QStringLiteral("单词不能是空的"));
         return {};
     }
     if (fieldText(fields, "gloss").isEmpty()) {
-        m_error = QStringLiteral("中文意思不能是空的");
+        setError(QStringLiteral("中文意思不能是空的"));
         return {};
     }
     const QString issue = scriptIssue(lang, glyph);
     if (!issue.isEmpty()) {
-        m_error = issue;
+        setError(issue);
         return {};
     }
 
     int position = 1;
-    QSqlQuery scan(m_db);
-    scan.prepare(QStringLiteral("SELECT payload FROM items WHERE set_id = ?"));
-    scan.addBindValue(setId);
-    if (!scan.exec()) {
-        m_error = scan.lastError().text();
-        return {};
-    }
-    while (scan.next()) {
-        const QJsonObject row = QJsonDocument::fromJson(scan.value(0).toString().toUtf8()).object();
-        position = qMax(position, row.value(QStringLiteral("position")).toInt() + 1);
+    {
+        QSqlQuery scan(m_db);
+        scan.prepare(QStringLiteral("SELECT payload FROM items WHERE set_id = ?"));
+        scan.addBindValue(setId);
+        if (!scan.exec()) {
+            setError(scan.lastError().text());
+            return {};
+        }
+        while (scan.next()) {
+            const QJsonObject row = QJsonDocument::fromJson(scan.value(0).toString().toUtf8()).object();
+            position = qMax(position, row.value(QStringLiteral("position")).toInt() + 1);
+        }
     }
 
     QJsonObject payload{
@@ -1649,16 +1714,22 @@ QString StudyStore::addVocab(const QString &setId, const QString &lang, const QV
 
     const QString id = lang + QStringLiteral(":vocab:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString gloss = payload.value(QStringLiteral("gloss")).toString();
-    if (!m_db.transaction())
+    if (!m_db.transaction()) {
+        const QString detail = m_db.lastError().text();
+        setError(detail.isEmpty() ? QStringLiteral("词汇没有写入") : detail);
         return {};
+    }
     if (!insertItem(id, lang, setId, payload.toVariantMap(), QStringLiteral("vocab"))
         || !syncVocabFaces(id, glyph, gloss)
         || !m_db.commit()) {
         m_db.rollback();
         if (m_error.isEmpty())
-            m_error = QStringLiteral("词汇没有写入");
+            setError(QStringLiteral("词汇没有写入"));
+        else
+            emit errorChanged();
         return {};
     }
+    setError({});
     ++m_revision;
     emit changed();
     return id;
@@ -1671,39 +1742,45 @@ bool StudyStore::updateVocab(const QString &itemId, const QVariantMap &fields)
 
     const QString glyph = fieldText(fields, "glyph");
     if (glyph.isEmpty()) {
-        m_error = QStringLiteral("单词不能是空的");
+        setError(QStringLiteral("单词不能是空的"));
         return false;
     }
     if (fieldText(fields, "gloss").isEmpty()) {
-        m_error = QStringLiteral("中文意思不能是空的");
+        setError(QStringLiteral("中文意思不能是空的"));
         return false;
     }
 
-    QSqlQuery langQuery(m_db);
-    langQuery.prepare(QStringLiteral("SELECT lang FROM items WHERE id = ?"));
-    langQuery.addBindValue(itemId);
-    if (!langQuery.exec() || !langQuery.next()) {
-        m_error = langQuery.lastError().text();
-        if (m_error.isEmpty())
-            m_error = QStringLiteral("只能修改词汇");
-        return false;
+    QString lang;
+    {
+        QSqlQuery langQuery(m_db);
+        langQuery.prepare(QStringLiteral("SELECT lang FROM items WHERE id = ?"));
+        langQuery.addBindValue(itemId);
+        if (!langQuery.exec() || !langQuery.next()) {
+            const QString detail = langQuery.lastError().text();
+            setError(detail.isEmpty() ? QStringLiteral("只能修改词汇") : detail);
+            return false;
+        }
+        lang = langQuery.value(0).toString();
     }
-    const QString issue = scriptIssue(langQuery.value(0).toString(), glyph);
+    const QString issue = scriptIssue(lang, glyph);
     if (!issue.isEmpty()) {
-        m_error = issue;
+        setError(issue);
         return false;
     }
 
     QJsonObject payload;
     if (!vocabKind(itemId, &payload)) {
-        m_error = QStringLiteral("只能修改词汇");
+        setError(QStringLiteral("只能修改词汇"));
         return false;
     }
     writeVocabText(payload, glyph, fields);
     const QString gloss = payload.value(QStringLiteral("gloss")).toString();
 
-    if (!m_db.transaction())
+    if (!m_db.transaction()) {
+        const QString detail = m_db.lastError().text();
+        setError(detail.isEmpty() ? QStringLiteral("词汇没有保存") : detail);
         return false;
+    }
     QSqlQuery update(m_db);
     update.prepare(QStringLiteral("UPDATE items SET payload = ? WHERE id = ? AND kind = 'vocab'"));
     update.addBindValue(jsonText(payload));
@@ -1711,9 +1788,12 @@ bool StudyStore::updateVocab(const QString &itemId, const QVariantMap &fields)
     if (!update.exec() || !syncVocabFaces(itemId, glyph, gloss) || !m_db.commit()) {
         m_db.rollback();
         if (m_error.isEmpty())
-            m_error = QStringLiteral("词汇没有保存");
+            setError(QStringLiteral("词汇没有保存"));
+        else
+            emit errorChanged();
         return false;
     }
+    setError({});
     ++m_revision;
     emit changed();
     return true;

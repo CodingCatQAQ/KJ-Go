@@ -19,6 +19,14 @@ Item {
     property string progressView: "overview"
     property string gameView: "memory"
 
+    Component.onCompleted: {
+        var saved = studyStore.language
+        if (saved === "ko" || saved === "ja")
+            language = saved
+        if (language === "ko")
+            studyView = "vocab"
+    }
+
     readonly property string studySet: {
         if (language === "ko")
             return "ko-syllable"
@@ -105,6 +113,7 @@ Item {
         language: root.language
         onToggleLanguage: {
             root.language = root.language === "ja" ? "ko" : "ja"
+            studyStore.language = root.language
             if (root.language === "ko" && (root.flashFront === "hira" || root.flashFront === "kata"))
                 root.flashFront = "word"
             else if (root.language === "ja" && (root.flashFront === "word" || root.flashFront === "gloss"))

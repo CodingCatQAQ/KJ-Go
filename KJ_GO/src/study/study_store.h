@@ -10,12 +10,15 @@ class StudyStore : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int revision READ revision NOTIFY changed)
-    Q_PROPERTY(QString error READ error CONSTANT)
+    Q_PROPERTY(QString error READ error NOTIFY errorChanged)
+    Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 public:
     explicit StudyStore(QObject *parent = nullptr);
 
     int revision() const;
     QString error() const;
+    QString language() const;
+    void setLanguage(const QString &language);
 
     Q_INVOKABLE QVariantMap layout(const QString &layoutId) const;
     Q_INVOKABLE QVariantMap item(const QString &itemId) const;
@@ -32,11 +35,15 @@ public:
     Q_INVOKABLE QString addVocab(const QString &setId, const QString &lang, const QVariantMap &fields);
     Q_INVOKABLE bool updateVocab(const QString &itemId, const QVariantMap &fields);
     Q_INVOKABLE bool removeVocab(const QString &itemId);
+    Q_INVOKABLE QString lastError() const;
 
 signals:
     void changed();
+    void errorChanged();
+    void languageChanged();
 
 private:
+    void setError(const QString &message);
     bool openDatabase();
     bool migrate();
     struct KanaChartRow;
@@ -70,5 +77,6 @@ private:
 
     QSqlDatabase m_db;
     QString m_error;
+    QString m_language = QStringLiteral("ja");
     int m_revision = 0;
 };

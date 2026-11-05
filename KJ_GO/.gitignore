@@ -82,6 +82,7 @@ CMakeLists.txt.user*
 /study.sqlite-wal
 /study.sqlite-shm
 /study.sqlite-journal
+/study.sqlite.bak-*
 
 # Directories with generated files
 .moc/
