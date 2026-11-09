@@ -55,10 +55,19 @@ Item {
         return studyStore.reviewQueue(setId, 12)
     }
 
+    function cardsById() {
+        var rows = studyStore.items(setId)
+        var byId = {}
+        for (var i = 0; i < rows.length; ++i)
+            byId[rows[i].id] = rows[i]
+        return byId
+    }
+
     function buildFrontPick(ids) {
+        var byId = cardsById()
         var pick = {}
         for (var i = 0; i < ids.length; ++i) {
-            var card = studyStore.item(ids[i])
+            var card = byId[ids[i]]
             if (card && card.kind === "vocab")
                 pick[ids[i]] = Math.random() < 0.5 ? "gloss" : "word"
             else
@@ -150,7 +159,7 @@ Item {
 
     function reload() {
         var ids = loadQueue()
-        var first = ids.length > 0 ? studyStore.item(ids[0]) : null
+        var first = ids.length > 0 ? cardsById()[ids[0]] : null
         vocabDeck = first ? first.kind === "vocab" : setId.indexOf("vocab") !== -1
         buildFrontPick(ids)
         queue = ids

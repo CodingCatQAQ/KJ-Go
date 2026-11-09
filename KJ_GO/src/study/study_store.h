@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QJsonObject>
 #include <QObject>
 #include <QSqlDatabase>
@@ -65,6 +66,7 @@ private:
                       const QString &glyph, const QString &reading, bool existed);
     bool removeSyllable(const QString &id);
     bool exec(const QString &sql);
+    void ensureQueryCache() const;
     bool upgradeMemory();
     bool attachKanaAudio();
     bool recomputeStatuses();
@@ -79,4 +81,13 @@ private:
     QString m_error;
     QString m_language = QStringLiteral("ja");
     int m_revision = 0;
+    mutable int m_queryRevision = -1;
+    mutable QHash<QString, QVariantMap> m_layoutCache;
+    mutable QHash<QString, QVariantMap> m_itemCache;
+    mutable QHash<QString, QVariantList> m_itemsCache;
+    mutable QHash<QString, QVariantMap> m_countsCache;
+    mutable QHash<QString, QVariantMap> m_progressCache;
+    mutable QHash<QString, QStringList> m_weakCache;
+    mutable QHash<QString, QStringList> m_idCache;
+    mutable QHash<QString, QStringList> m_reviewCache;
 };

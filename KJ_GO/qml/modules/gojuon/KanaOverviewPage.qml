@@ -36,9 +36,13 @@ Item {
         }
         return rows.length > 0 ? rows[0] : null
     }
+    property string settledId: ""
+    property string editingId: ""
+    property bool mnemonicDirty: false
+    property bool mnemonicFilling: false
     readonly property var entry: {
-        var rev = studyStore.revision
-        return root.hovered ? studyStore.item(root.hovered) : ({})
+        var card = root.cardFor(root.settledId)
+        return card ? card : ({})
     }
     readonly property string heroGlyph: {
         if (!root.entry || !root.entry.glyph)
@@ -63,8 +67,11 @@ Item {
     function focusLayout() {
         var data = studyStore.layout(root.layoutId)
         var rows = data.rows || []
-        hovered = rows.length > 0 ? firstCell(rows[0]) : ""
+        var id = rows.length > 0 ? firstCell(rows[0]) : ""
         pickedInitial = rows.length > 0 ? rows[0].short : ""
+        hovered = id
+        hoverDelay.stop()
+        useHover(id)
         if (chartScroll)
             chartScroll.contentY = 0
     }
@@ -87,6 +94,8 @@ Item {
         var id = firstCell(row)
         if (id)
             hovered = id
+        hoverDelay.stop()
+        useHover(id || hovered)
         if (chartScroll)
             chartScroll.contentY = 0
     }
@@ -112,21 +121,68 @@ Item {
         return Theme.accent
     }
 
-    property string mnemonicItem: ""
-
-    function loadMnemonic() {
-        if (mnemonicItem && mnemonicItem !== root.hovered)
-            studyStore.setMnemonic(mnemonicItem, mnemonicEdit.text)
-        mnemonicItem = root.hovered
-        var card = root.hovered ? studyStore.item(root.hovered) : ({})
-        mnemonicEdit.text = card && card.mnemonic ? card.mnemonic : ""
+    function cardFor(id) {
+        if (!id)
+            return null
+        if (root.korean) {
+            var row = root.hangulRow
+            var sections = row && row.sections ? row.sections : []
+            for (var s = 0; s < sections.length; ++s) {
+                var grouped = sections[s].cells || []
+                for (var c = 0; c < grouped.length; ++c) {
+                    if (grouped[c] && grouped[c].id === id)
+                        return grouped[c]
+                }
+            }
+        }
+        var rows = root.board.rows || []
+        for (var r = 0; r < rows.length; ++r) {
+            var cells = rows[r].cells || []
+            for (var i = 0; i < cells.length; ++i) {
+                if (cells[i] && cells[i].id === id)
+                    return cells[i]
+            }
+        }
+        return null
     }
 
-    onHoveredChanged: loadMnemonic()
+    function commitMnemonic() {
+        if (!mnemonicDirty || !editingId)
+            return
+        studyStore.setMnemonic(editingId, mnemonicEdit.text)
+        mnemonicDirty = false
+    }
+
+    function fillMnemonic(id) {
+        mnemonicFilling = true
+        var card = cardFor(id)
+        var text = card && card.mnemonic ? card.mnemonic : ""
+        if (mnemonicEdit.text !== text)
+            mnemonicEdit.text = text
+        mnemonicDirty = false
+        mnemonicFilling = false
+    }
+
+    function useHover(id) {
+        if (id === editingId) {
+            settledId = id
+            return
+        }
+        commitMnemonic()
+        editingId = id
+        settledId = id
+        fillMnemonic(id)
+    }
+
+    Timer {
+        id: hoverDelay
+        interval: 36
+        onTriggered: root.useHover(root.hovered)
+    }
+    onHoveredChanged: hoverDelay.restart()
     Component.onCompleted: {
         boardReady = true
         focusLayout()
-        loadMnemonic()
     }
 
     Rectangle { anchors.fill: parent; color: Theme.bg }
@@ -338,13 +394,7 @@ Item {
                                         mastery: slot.status
                                         dimmed: root.filter !== "all" && root.filter !== slot.status
                                         onActivated: root.speak(slot.modelData.audio || "")
-                                        HoverHandler {
-                                            id: slotHover
-                                            onHoveredChanged: {
-                                                if (slotHover.hovered && slot.modelData.id)
-                                                    root.hovered = slot.modelData.id
-                                            }
-                                        }
+                                        onPointed: if (slot.modelData.id) root.hovered = slot.modelData.id
                                     }
                                     Rectangle {
                                         visible: slot.glyph === ""
@@ -397,13 +447,7 @@ Item {
                                                 mastery: hangulSlot.status
                                                 dimmed: root.filter !== "all" && root.filter !== hangulSlot.status
                                                 onActivated: root.speak(hangulSlot.modelData.audio || "")
-                                                HoverHandler {
-                                                    id: hangulHover
-                                                    onHoveredChanged: {
-                                                        if (hangulHover.hovered && hangulSlot.modelData.id)
-                                                            root.hovered = hangulSlot.modelData.id
-                                                    }
-                                                }
+                                                onPointed: if (hangulSlot.modelData.id) root.hovered = hangulSlot.modelData.id
                                             }
                                         }
                                     }
@@ -601,7 +645,8 @@ Item {
                     font.family: Theme.fontBody
                     font.pixelSize: 14
                     background: Rectangle { color: "transparent" }
-                    onEditingFinished: studyStore.setMnemonic(root.hovered, text)
+                    onTextChanged: if (!root.mnemonicFilling) root.mnemonicDirty = true
+                    onEditingFinished: root.commitMnemonic()
                 }
             }
             }

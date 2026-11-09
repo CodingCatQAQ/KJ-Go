@@ -18,6 +18,15 @@ Item {
     property string flashFront: "hira"
     property string progressView: "overview"
     property string gameView: "memory"
+    property bool flashAlive: false
+    property bool gameAlive: false
+
+    onCurrentModuleChanged: {
+        if (currentModule === 1)
+            flashAlive = true
+        else if (currentModule === 3)
+            gameAlive = true
+    }
 
     Component.onCompleted: {
         var saved = studyStore.language
@@ -128,6 +137,31 @@ Item {
         onOpenSettings: settingsPopup.open()
     }
 
+    Component {
+        id: flashPage
+        FlashcardPage {
+            setId: root.flashSet
+            queueMode: root.flashQueue
+            frontScript: root.flashFront
+            onExit: root.showStudy("overview")
+        }
+    }
+    Component {
+        id: progressPage
+        ProgressPage {
+            language: root.language
+            view: root.progressView
+        }
+    }
+    Component {
+        id: gamePage
+        GamePage {
+            view: root.gameView
+            setId: root.vocabSet
+            onOpenVocab: root.showStudy("vocab")
+        }
+    }
+
     StackLayout {
         anchors.top: topBar.bottom
         anchors.bottom: parent.bottom
@@ -161,20 +195,20 @@ Item {
                 setId: root.vocabSet
             }
         }
-        FlashcardPage {
-            setId: root.flashSet
-            queueMode: root.flashQueue
-            frontScript: root.flashFront
-            onExit: root.showStudy("overview")
+        Loader {
+            active: root.flashAlive
+            sourceComponent: flashPage
+            onLoaded: if (item) item.anchors.fill = item.parent
         }
-        ProgressPage {
-            language: root.language
-            view: root.progressView
+        Loader {
+            active: root.currentModule === 2
+            sourceComponent: progressPage
+            onLoaded: if (item) item.anchors.fill = item.parent
         }
-        GamePage {
-            view: root.gameView
-            setId: root.vocabSet
-            onOpenVocab: root.showStudy("vocab")
+        Loader {
+            active: root.gameAlive
+            sourceComponent: gamePage
+            onLoaded: if (item) item.anchors.fill = item.parent
         }
     }
 

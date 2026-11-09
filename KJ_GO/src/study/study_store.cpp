@@ -271,6 +271,21 @@ int StudyStore::revision() const
     return m_revision;
 }
 
+void StudyStore::ensureQueryCache() const
+{
+    if (m_queryRevision == m_revision)
+        return;
+    m_queryRevision = m_revision;
+    m_layoutCache.clear();
+    m_itemCache.clear();
+    m_itemsCache.clear();
+    m_countsCache.clear();
+    m_progressCache.clear();
+    m_weakCache.clear();
+    m_idCache.clear();
+    m_reviewCache.clear();
+}
+
 QString StudyStore::error() const
 {
     return m_error;
@@ -1338,16 +1353,25 @@ bool StudyStore::seedKorean()
 
 QVariantMap StudyStore::layout(const QString &layoutId) const
 {
+    ensureQueryCache();
+    const auto cached = m_layoutCache.constFind(layoutId);
+    if (cached != m_layoutCache.constEnd())
+        return cached.value();
+
     QVariantMap result;
-    if (!m_db.isOpen())
+    if (!m_db.isOpen()) {
+        m_layoutCache.insert(layoutId, result);
         return result;
+    }
 
     QSqlQuery layout(m_db);
     layout.prepare(QStringLiteral(
         "SELECT set_id, eyebrow, title, column_serif, columns_json, rows_json FROM layouts WHERE id = ?"));
     layout.addBindValue(layoutId);
-    if (!layout.exec() || !layout.next())
+    if (!layout.exec() || !layout.next()) {
+        m_layoutCache.insert(layoutId, result);
         return result;
+    }
 
     const QString setId = layout.value(0).toString();
     QHash<QString, QVariantMap> cards;
@@ -1366,6 +1390,13 @@ QVariantMap StudyStore::layout(const QString &layoutId) const
                 {QStringLiteral("glyphAlt"), payload.value(QStringLiteral("glyphAlt")).toString()},
                 {QStringLiteral("reading"), payload.value(QStringLiteral("reading")).toString()},
                 {QStringLiteral("audio"), payload.value(QStringLiteral("audio")).toString()},
+                {QStringLiteral("pairLeftLabel"), payload.value(QStringLiteral("pairLeftLabel")).toString()},
+                {QStringLiteral("pairLeft"), payload.value(QStringLiteral("pairLeft")).toString()},
+                {QStringLiteral("pairRightLabel"), payload.value(QStringLiteral("pairRightLabel")).toString()},
+                {QStringLiteral("pairRight"), payload.value(QStringLiteral("pairRight")).toString()},
+                {QStringLiteral("pairCodaLabel"), payload.value(QStringLiteral("pairCodaLabel")).toString()},
+                {QStringLiteral("pairCoda"), payload.value(QStringLiteral("pairCoda")).toString()},
+                {QStringLiteral("mnemonic"), payload.value(QStringLiteral("mnemonic")).toString()},
                 {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
             });
         }
@@ -1423,22 +1454,33 @@ QVariantMap StudyStore::layout(const QString &layoutId) const
     result.insert(QStringLiteral("columnSerif"), layout.value(3).toInt() != 0);
     result.insert(QStringLiteral("columns"), columnTexts);
     result.insert(QStringLiteral("rows"), rows);
+    m_layoutCache.insert(layoutId, result);
     return result;
 }
 
 QVariantMap StudyStore::item(const QString &itemId) const
 {
     QVariantMap result;
-    if (!m_db.isOpen() || itemId.isEmpty())
+    if (itemId.isEmpty())
         return result;
+    ensureQueryCache();
+    const auto cached = m_itemCache.constFind(itemId);
+    if (cached != m_itemCache.constEnd())
+        return cached.value();
+    if (!m_db.isOpen()) {
+        m_itemCache.insert(itemId, result);
+        return result;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "SELECT i.lang, i.kind, i.set_id, i.payload, m.status, m.streak "
         "FROM items i LEFT JOIN memory m ON m.item_id = i.id WHERE i.id = ?"));
     query.addBindValue(itemId);
-    if (!query.exec() || !query.next())
+    if (!query.exec() || !query.next()) {
+        m_itemCache.insert(itemId, result);
         return result;
+    }
 
     const QJsonObject payload = QJsonDocument::fromJson(query.value(3).toString().toUtf8()).object();
     QVariantList lookalikes;
@@ -1494,22 +1536,33 @@ QVariantMap StudyStore::item(const QString &itemId) const
     result.insert(QStringLiteral("status"), query.value(4).toString().isEmpty() ? QStringLiteral("unlearned") : query.value(4).toString());
     result.insert(QStringLiteral("streak"), query.value(5).toInt());
     result.insert(QStringLiteral("lastResult"), lastResult);
+    m_itemCache.insert(itemId, result);
     return result;
 }
 
 QVariantList StudyStore::items(const QString &setId) const
 {
     QVariantList result;
-    if (!m_db.isOpen() || setId.isEmpty())
+    if (setId.isEmpty())
         return result;
+    ensureQueryCache();
+    const auto cached = m_itemsCache.constFind(setId);
+    if (cached != m_itemsCache.constEnd())
+        return cached.value();
+    if (!m_db.isOpen()) {
+        m_itemsCache.insert(setId, result);
+        return result;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "SELECT i.id, i.payload, m.status FROM items i "
+        "SELECT i.id, i.kind, i.payload, m.status FROM items i "
         "LEFT JOIN memory m ON m.item_id = i.id WHERE i.set_id = ?"));
     query.addBindValue(setId);
-    if (!query.exec())
+    if (!query.exec()) {
+        m_itemsCache.insert(setId, result);
         return result;
+    }
 
     struct Row {
         int position;
@@ -1517,11 +1570,13 @@ QVariantList StudyStore::items(const QString &setId) const
     };
     QVector<Row> rows;
     while (query.next()) {
-        const QJsonObject payload = QJsonDocument::fromJson(query.value(1).toString().toUtf8()).object();
-        const QString status = query.value(2).toString();
+        const QJsonObject payload = QJsonDocument::fromJson(query.value(2).toString().toUtf8()).object();
+        const QString status = query.value(3).toString();
         rows.append({payload.value(QStringLiteral("position")).toInt(), QVariantMap{
             {QStringLiteral("id"), query.value(0).toString()},
+            {QStringLiteral("kind"), query.value(1).toString()},
             {QStringLiteral("glyph"), payload.value(QStringLiteral("glyph")).toString()},
+            {QStringLiteral("glyphAlt"), payload.value(QStringLiteral("glyphAlt")).toString()},
             {QStringLiteral("gloss"), payload.value(QStringLiteral("gloss")).toString()},
             {QStringLiteral("pos"), vocabPosList(payload.value(QStringLiteral("pos")))},
             {QStringLiteral("status"), status.isEmpty() ? QStringLiteral("unlearned") : status},
@@ -1532,6 +1587,7 @@ QVariantList StudyStore::items(const QString &setId) const
     });
     for (const Row &row : rows)
         result.append(row.item);
+    m_itemsCache.insert(setId, result);
     return result;
 }
 
@@ -1844,22 +1900,31 @@ bool StudyStore::removeVocab(const QString &itemId)
 
 QVariantMap StudyStore::counts(const QString &setId) const
 {
+    ensureQueryCache();
+    const auto cached = m_countsCache.constFind(setId);
+    if (cached != m_countsCache.constEnd())
+        return cached.value();
+
     QVariantMap result{
         {QStringLiteral("total"), 0},
         {QStringLiteral("mastered"), 0},
         {QStringLiteral("fuzzy"), 0},
         {QStringLiteral("unlearned"), 0},
     };
-    if (!m_db.isOpen())
+    if (!m_db.isOpen()) {
+        m_countsCache.insert(setId, result);
         return result;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "SELECT m.status, COUNT(*) FROM memory m "
         "JOIN items i ON i.id = m.item_id WHERE i.set_id = ? GROUP BY m.status"));
     query.addBindValue(setId);
-    if (!query.exec())
+    if (!query.exec()) {
+        m_countsCache.insert(setId, result);
         return result;
+    }
 
     int total = 0;
     while (query.next()) {
@@ -1874,14 +1939,22 @@ QVariantMap StudyStore::counts(const QString &setId) const
             result.insert(QStringLiteral("unlearned"), result.value(QStringLiteral("unlearned")).toInt() + count);
     }
     result.insert(QStringLiteral("total"), total);
+    m_countsCache.insert(setId, result);
     return result;
 }
 
 QStringList StudyStore::weakIds(const QString &setId) const
 {
+    ensureQueryCache();
+    const auto cached = m_weakCache.constFind(setId);
+    if (cached != m_weakCache.constEnd())
+        return cached.value();
+
     QStringList ids;
-    if (!m_db.isOpen())
+    if (!m_db.isOpen()) {
+        m_weakCache.insert(setId, ids);
         return ids;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
@@ -1889,8 +1962,10 @@ QStringList StudyStore::weakIds(const QString &setId) const
         "JOIN items i ON i.id = m.item_id "
         "WHERE i.set_id = ? AND m.status = 'fuzzy'"));
     query.addBindValue(setId);
-    if (!query.exec())
+    if (!query.exec()) {
+        m_weakCache.insert(setId, ids);
         return ids;
+    }
 
     QVector<QPair<int, QString>> ordered;
     while (query.next()) {
@@ -1902,21 +1977,31 @@ QStringList StudyStore::weakIds(const QString &setId) const
     });
     for (const auto &entry : ordered)
         ids.append(entry.second);
+    m_weakCache.insert(setId, ids);
     return ids;
 }
 
 QStringList StudyStore::itemIds(const QString &setId) const
 {
+    ensureQueryCache();
+    const auto cached = m_idCache.constFind(setId);
+    if (cached != m_idCache.constEnd())
+        return cached.value();
+
     QStringList ids;
-    if (!m_db.isOpen())
+    if (!m_db.isOpen()) {
+        m_idCache.insert(setId, ids);
         return ids;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "SELECT i.id, i.payload FROM items i WHERE i.set_id = ?"));
     query.addBindValue(setId);
-    if (!query.exec())
+    if (!query.exec()) {
+        m_idCache.insert(setId, ids);
         return ids;
+    }
 
     QVector<QPair<int, QString>> ordered;
     while (query.next()) {
@@ -1928,22 +2013,33 @@ QStringList StudyStore::itemIds(const QString &setId) const
     });
     for (const auto &entry : ordered)
         ids.append(entry.second);
+    m_idCache.insert(setId, ids);
     return ids;
 }
 
 QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
 {
+    const QString key = setId + QLatin1Char('\n') + QString::number(limit);
+    ensureQueryCache();
+    const auto cached = m_reviewCache.constFind(key);
+    if (cached != m_reviewCache.constEnd())
+        return cached.value();
+
     QStringList ids;
-    if (!m_db.isOpen() || limit <= 0)
+    if (!m_db.isOpen() || limit <= 0) {
+        m_reviewCache.insert(key, ids);
         return ids;
+    }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "SELECT i.id, i.payload, m.status FROM items i "
         "JOIN memory m ON m.item_id = i.id WHERE i.set_id = ?"));
     query.addBindValue(setId);
-    if (!query.exec())
+    if (!query.exec()) {
+        m_reviewCache.insert(key, ids);
         return ids;
+    }
 
     struct Candidate {
         int bucket;
@@ -1971,11 +2067,17 @@ QStringList StudyStore::reviewQueue(const QString &setId, int limit) const
     const int count = qMin(limit, static_cast<int>(candidates.size()));
     for (int i = 0; i < count; ++i)
         ids.append(candidates.at(i).id);
+    m_reviewCache.insert(setId + QLatin1Char('\n') + QString::number(limit), ids);
     return ids;
 }
 
 QVariantMap StudyStore::progress(const QString &lang) const
 {
+    ensureQueryCache();
+    const auto cached = m_progressCache.constFind(lang);
+    if (cached != m_progressCache.constEnd())
+        return cached.value();
+
     struct SetSpec {
         QString id;
         QString label;
@@ -2140,7 +2242,7 @@ QVariantMap StudyStore::progress(const QString &lang) const
     }
 
     const QPair<int, int> todayCount = byDay.value(today);
-    return QVariantMap{
+    const QVariantMap result{
         {QStringLiteral("sets"), sets},
         {QStringLiteral("reviews"), reviews},
         {QStringLiteral("right"), right},
@@ -2152,6 +2254,8 @@ QVariantMap StudyStore::progress(const QString &lang) const
         {QStringLiteral("curve"), curve},
         {QStringLiteral("misses"), misses},
     };
+    m_progressCache.insert(lang, result);
+    return result;
 }
 
 void StudyStore::rate(const QString &itemId, bool correct, const QString &activity, const QString &prompt)

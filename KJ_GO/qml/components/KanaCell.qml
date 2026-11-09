@@ -16,12 +16,7 @@ Rectangle {
     border.width: mastery === "mastered" ? 0 : 1
     border.color: Theme.line
     opacity: dimmed ? 0.2 : 1
-    scale: hover.hovered && !dimmed ? 1.06 : 1
-    transformOrigin: Item.Center
-
-    Behavior on scale {
-        NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
-    }
+    signal pointed()
 
     Rectangle {
         anchors.fill: parent
@@ -46,14 +41,13 @@ Rectangle {
         anchors.bottomMargin: 8
         width: Math.max(0, parent.width - 8)
         horizontalAlignment: Text.AlignHCenter
-        fontSizeMode: Text.HorizontalFit
-        minimumPixelSize: 8
+        elide: Text.ElideRight
         text: root.romaji.toUpperCase()
         color: root.mastery === "mastered" ? Qt.rgba(Theme.primaryFg.r, Theme.primaryFg.g, Theme.primaryFg.b, 0.7) : Theme.textMuted
         font.family: Theme.fontBody
-        font.pixelSize: 10
+        font.pixelSize: root.romaji.length > 8 ? 8 : (root.romaji.length > 5 ? 9 : 10)
         font.bold: true
-        font.letterSpacing: root.romaji.length > 3 ? 0.2 : 1.6
+        font.letterSpacing: root.romaji.length > 4 ? 0 : 1.2
     }
     Rectangle {
         visible: root.mastery === "fuzzy"
@@ -67,6 +61,9 @@ Rectangle {
         color: Theme.accent
     }
 
-    HoverHandler { id: hover }
+    HoverHandler {
+        id: hover
+        onHoveredChanged: if (hovered) root.pointed()
+    }
     TapHandler { onTapped: root.activated() }
 }

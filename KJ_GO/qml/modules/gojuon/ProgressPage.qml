@@ -34,6 +34,8 @@ Item {
     readonly property bool rowHeat: heatSet === "ko-syllable"
     readonly property var heatBoard: {
         var rev = studyStore.revision
+        if (view !== "heat")
+            return null
         var id = layoutFor(heatSet)
         if (!id)
             return null
@@ -53,7 +55,7 @@ Item {
     }
     readonly property var vocabList: {
         var rev = studyStore.revision
-        if (!vocabHeat)
+        if (view !== "heat" || !vocabHeat)
             return []
         return studyStore.items(heatSet) || []
     }
