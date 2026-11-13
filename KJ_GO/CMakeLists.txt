@@ -29,6 +29,15 @@ qt_add_executable(appKJ_GO
     src/game/presentation/memory_card_model.cpp
     src/game/presentation/memory_match_game.h
     src/game/presentation/memory_match_game.cpp
+    src/game/domain/mole_field.h
+    src/game/domain/mole_field.cpp
+    src/game/domain/whack_tier.h
+    src/game/application/mole_dealer.h
+    src/game/application/mole_dealer.cpp
+    src/game/presentation/mole_hole_model.h
+    src/game/presentation/mole_hole_model.cpp
+    src/game/presentation/whack_mole_game.h
+    src/game/presentation/whack_mole_game.cpp
 )
 
 target_include_directories(appKJ_GO PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -75,6 +84,11 @@ qt_add_qml_module(appKJ_GO
         qml/modules/game/MemoryBoard.qml
         qml/modules/game/MemoryCard.qml
         qml/modules/game/MemoryResult.qml
+        qml/modules/game/WhackMolePage.qml
+        qml/modules/game/WhackSetup.qml
+        qml/modules/game/WhackBoard.qml
+        qml/modules/game/WhackHole.qml
+        qml/modules/game/WhackResult.qml
     RESOURCES
         qml/theme/qmldir
         qml/shell/qmldir

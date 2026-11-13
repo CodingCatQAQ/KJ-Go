@@ -1,6 +1,7 @@
 #include "audio/kana_player.h"
 #include "game/infrastructure/study_vocab_catalog.h"
 #include "game/presentation/memory_match_game.h"
+#include "game/presentation/whack_mole_game.h"
 #include "study/study_store.h"
 
 #include <QGuiApplication>
@@ -18,10 +19,13 @@ int main(int argc, char *argv[])
     StudyStore studyStore;
     game::StudyVocabCatalog vocabCatalog(studyStore);
     game::MemoryMatchGame memoryMatch(vocabCatalog);
+    game::WhackMoleGame whackMole(vocabCatalog, studyStore);
     QObject::connect(&studyStore, &StudyStore::changed, &memoryMatch, &game::MemoryMatchGame::reloadPool);
+    QObject::connect(&studyStore, &StudyStore::changed, &whackMole, &game::WhackMoleGame::reloadPool);
     engine.rootContext()->setContextProperty(QStringLiteral("kanaPlayer"), &kanaPlayer);
     engine.rootContext()->setContextProperty(QStringLiteral("studyStore"), &studyStore);
     engine.rootContext()->setContextProperty(QStringLiteral("memoryMatch"), &memoryMatch);
+    engine.rootContext()->setContextProperty(QStringLiteral("whackMole"), &whackMole);
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreationFailed,

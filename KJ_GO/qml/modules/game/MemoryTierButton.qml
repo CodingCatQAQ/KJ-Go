@@ -5,13 +5,17 @@ Rectangle {
     id: root
     property int side: 4
     property string title: ""
+    property string caption: ""
+    property int poolCount: memoryMatch.usableCount
+    property int needCount: 0
     signal picked()
 
     readonly property int pairCount: (side * side) / 2
     readonly property int cardCount: side * side
-    readonly property int pool: memoryMatch.usableCount
-    readonly property bool open: pool >= pairCount
-    readonly property int lack: Math.max(0, pairCount - pool)
+    readonly property int need: needCount > 0 ? needCount : pairCount
+    readonly property int pool: poolCount
+    readonly property bool open: pool >= need
+    readonly property int lack: Math.max(0, need - pool)
 
     implicitWidth: 420
     implicitHeight: 76
@@ -29,7 +33,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 4
         Text {
-            text: root.title + "  " + root.side + "×" + root.side
+            text: root.caption === "" ? (root.title + "  " + root.side + "×" + root.side) : root.title
             color: Theme.text
             font.family: Theme.fontBody
             font.pixelSize: 16
@@ -37,7 +41,7 @@ Rectangle {
         }
         Text {
             text: root.open
-                  ? (root.pairCount + " 对 · " + root.cardCount + " 张")
+                  ? (root.caption !== "" ? root.caption : (root.pairCount + " 对 · " + root.cardCount + " 张"))
                   : ("还差 " + root.lack + " 个词")
             color: Theme.textMuted
             font.family: Theme.fontBody

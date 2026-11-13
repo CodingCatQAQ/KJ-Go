@@ -5,3 +5,8 @@ MemoryTierButton 1.0 MemoryTierButton.qml
 MemoryBoard 1.0 MemoryBoard.qml
 MemoryCard 1.0 MemoryCard.qml
 MemoryResult 1.0 MemoryResult.qml
+WhackMolePage 1.0 WhackMolePage.qml
+WhackSetup 1.0 WhackSetup.qml
+WhackBoard 1.0 WhackBoard.qml
+WhackHole 1.0 WhackHole.qml
+WhackResult 1.0 WhackResult.qml

@@ -158,6 +158,7 @@ Item {
         GamePage {
             view: root.gameView
             setId: root.vocabSet
+            running: root.currentModule === 3
             onOpenVocab: root.showStudy("vocab")
         }
     }

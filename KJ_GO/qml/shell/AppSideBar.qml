@@ -363,7 +363,12 @@ Item {
                 active: root.gameView === "memory"
                 onPicked: root.pickGame("memory")
             }
-            NavItem { Layout.fillWidth: true; label: "假名打地鼠"; soon: true }
+            NavItem {
+                Layout.fillWidth: true
+                label: "词汇打地鼠"
+                active: root.gameView === "whack"
+                onPicked: root.pickGame("whack")
+            }
             NavItem { Layout.fillWidth: true; label: "听音辨字"; soon: true }
             NavItem { Layout.fillWidth: true; label: "限时连线"; soon: true }
         }
